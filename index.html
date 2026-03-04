@@ -380,6 +380,7 @@ input{font:inherit;color:var(--text)}
   <div class="reader-toolbar" id="readerToolbar">
     <button onclick="prevChapter()"><span>◀</span>上一章</button>
     <button onclick="showChapterDrawer()"><span>☰</span>目录</button>
+    <button onclick="toggleTTSPanel()"><span>🎧</span>朗读</button>
     <button onclick="toggleSettings()"><span>⚙️</span>设置</button>
     <button onclick="nextChapter()"><span>▶</span>下一章</button>
   </div>
@@ -434,6 +435,34 @@ input{font:inherit;color:var(--text)}
     <div class="proxy-actions">
       <button class="btn btn-outline" onclick="document.getElementById('proxyOverlay').classList.remove('show')">取消</button>
       <button class="btn btn-primary" onclick="saveProxy()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- TTS Overlay -->
+<div class="settings-overlay" id="ttsOverlay" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="settings-panel">
+    <h3>语音朗读</h3>
+    <div class="setting-row">
+      <span class="setting-label">状态</span>
+      <div class="setting-control">
+        <button class="btn btn-primary" id="ttsPlayBtn" onclick="toggleTTS()">播放</button>
+        <button class="btn btn-outline" onclick="stopTTS()">停止</button>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">语速</span>
+      <div class="setting-control" style="flex:1;margin-left:16px">
+        <input type="range" id="ttsRate" min="0.5" max="2" step="0.1" value="1" onchange="changeTTSRate(this.value)" style="width:100%">
+        <span class="val" id="ttsRateVal">1.0</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">声音</span>
+      <div class="setting-control" style="flex:1;margin-left:16px;overflow:hidden">
+        <select id="ttsVoice" onchange="changeTTSVoice(this.value)" style="width:100%;padding:4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px">
+        </select>
+      </div>
     </div>
   </div>
 </div>
@@ -901,6 +930,7 @@ function renderChapter() {
     <div class="reader-nav">
       <button class="btn btn-outline" onclick="prevChapter()" ${hasPrev ? '' : 'disabled style="opacity:.4"'}>上一章</button>
       <button class="btn btn-outline" onclick="showView('book')">目录</button>
+      <button class="btn btn-outline" onclick="toggleTTSPanel()">朗读</button>
       <button class="btn btn-outline" onclick="nextChapter()" ${hasNext ? '' : 'disabled style="opacity:.4"'}>下一章</button>
     </div>`;
   applyReadingStyle();
@@ -1031,6 +1061,153 @@ function updateThemeBtns() {
   document.querySelectorAll('.theme-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.theme === S.theme);
   });
+}
+
+// =====================================================
+// TTS (Text to Speech)
+// =====================================================
+let ttsUtterance = null;
+let ttsVoices = [];
+let ttsState = 'stopped'; // stopped, playing, paused
+let ttsRate = parseFloat(localStorage.getItem('ttsRate') || '1.0');
+let ttsVoiceURI = localStorage.getItem('ttsVoiceURI') || '';
+
+function initTTS() {
+  if (!window.speechSynthesis) return;
+  
+  const loadVoices = () => {
+    ttsVoices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('zh'));
+    if (ttsVoices.length === 0) {
+      ttsVoices = window.speechSynthesis.getVoices();
+    }
+    const select = document.getElementById('ttsVoice');
+    if (select) {
+      select.innerHTML = ttsVoices.map(v => {
+        let type = '默认';
+        if (v.lang.includes('zh')) {
+          const n = v.name.toLowerCase();
+          if (n.includes('女') || n.includes('female') || n.includes('xiaoxiao') || n.includes('tingting')) type = '女声';
+          else if (n.includes('男') || n.includes('male') || n.includes('yunxi') || n.includes('kangkang')) type = '男声';
+        }
+        return `<option value="${v.voiceURI}" ${v.voiceURI === ttsVoiceURI ? 'selected' : ''}>${v.name} (${type})</option>`;
+      }).join('');
+      
+      if (!ttsVoiceURI && ttsVoices.length > 0) {
+        ttsVoiceURI = ttsVoices[0].voiceURI;
+      }
+    }
+  };
+
+  loadVoices();
+  if (speechSynthesis.onvoiceschanged !== undefined) {
+    speechSynthesis.onvoiceschanged = loadVoices;
+  }
+  
+  document.getElementById('ttsRate').value = ttsRate;
+  document.getElementById('ttsRateVal').textContent = ttsRate.toFixed(1);
+}
+
+function toggleTTSPanel() {
+  initTTS();
+  document.getElementById('ttsOverlay').classList.toggle('show');
+}
+
+function changeTTSRate(val) {
+  ttsRate = parseFloat(val);
+  document.getElementById('ttsRateVal').textContent = ttsRate.toFixed(1);
+  localStorage.setItem('ttsRate', ttsRate);
+  if (ttsState === 'playing') {
+    const currentText = ttsUtterance ? ttsUtterance.text : '';
+    stopTTS();
+    if (currentText) playTTS(currentText);
+  }
+}
+
+function changeTTSVoice(uri) {
+  ttsVoiceURI = uri;
+  localStorage.setItem('ttsVoiceURI', uri);
+  if (ttsState === 'playing') {
+    const currentText = ttsUtterance ? ttsUtterance.text : '';
+    stopTTS();
+    if (currentText) playTTS(currentText);
+  }
+}
+
+function playTTS(text) {
+  if (!window.speechSynthesis) return alert('您的浏览器不支持语音朗读');
+  
+  if (ttsState === 'paused' && !text) {
+    window.speechSynthesis.resume();
+    ttsState = 'playing';
+    updateTTSBtn();
+    return;
+  }
+
+  stopTTS();
+  
+  const contentToRead = text || (S.chapterContent ? S.chapterContent.content : '');
+  if (!contentToRead) return;
+
+  ttsUtterance = new SpeechSynthesisUtterance(contentToRead);
+  ttsUtterance.rate = ttsRate;
+  
+  const voice = ttsVoices.find(v => v.voiceURI === ttsVoiceURI);
+  if (voice) ttsUtterance.voice = voice;
+  
+  ttsUtterance.onend = () => {
+    ttsState = 'stopped';
+    updateTTSBtn();
+  };
+  
+  ttsUtterance.onerror = (e) => {
+    console.error('TTS Error', e);
+    ttsState = 'stopped';
+    updateTTSBtn();
+  };
+
+  window.speechSynthesis.speak(ttsUtterance);
+  ttsState = 'playing';
+  updateTTSBtn();
+}
+
+function pauseTTS() {
+  if (window.speechSynthesis && ttsState === 'playing') {
+    window.speechSynthesis.pause();
+    ttsState = 'paused';
+    updateTTSBtn();
+  }
+}
+
+function stopTTS() {
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+    ttsState = 'stopped';
+    updateTTSBtn();
+  }
+}
+
+function toggleTTS() {
+  if (ttsState === 'playing') {
+    pauseTTS();
+  } else {
+    playTTS();
+  }
+}
+
+function updateTTSBtn() {
+  const btn = document.getElementById('ttsPlayBtn');
+  if (btn) {
+    btn.textContent = ttsState === 'playing' ? '暂停' : '播放';
+  }
+}
+
+// Stop TTS when leaving reader view
+const originalShowView = showView;
+showView = function(name, pushStack) {
+  if (name !== 'reader' && ttsState !== 'stopped') {
+    stopTTS();
+  }
+  originalShowView(name, pushStack);
 }
 
 // =====================================================
