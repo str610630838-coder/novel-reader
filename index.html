@@ -998,7 +998,8 @@ function renderChapter() {
       const fullSentence = text + punc;
       if(fullSentence.trim()) {
         let speakText = fullSentence;
-        // 去除常见的页码模式
+        // 去除常见的页码模式 (包括 "第X页", "第X/Y页", "第(X/Y)页" 等)
+        speakText = speakText.replace(/第\s*[(（]?\s*\d+\s*[\/|]?\s*\d*\s*[)）]?\s*页/g, '');
         speakText = speakText.replace(/第\s*\d+\s*页/g, '');
         speakText = speakText.replace(/\d+\s*[\/|]\s*\d+/g, '');
         speakText = speakText.replace(/[\[【]\s*\d+\s*[\]】]/g, '');
