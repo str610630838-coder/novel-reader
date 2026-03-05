@@ -194,7 +194,7 @@ input{font:inherit;color:var(--text)}
 
 /* ---- Reader ---- */
 .reader{
-  max-width:800px;margin:0 auto;padding:20px 16px 100px;
+  max-width:800px;margin:0 auto;padding:20px 16px 180px;
   min-height:calc(100vh - var(--header-h));
 }
 .reader-title{
@@ -360,7 +360,7 @@ input{font:inherit;color:var(--text)}
   .book-detail-header{flex-direction:column;align-items:center;text-align:center}
   .book-detail-actions{justify-content:center}
   .reader-toolbar{display:flex}
-  .reader{padding-bottom:140px}
+  .reader{padding-bottom:220px}
   .home-hero h1{font-size:22px}
   .container{padding:12px}
 }
@@ -1252,7 +1252,7 @@ function playNextSentence() {
       el.classList.add('playing');
       const rect = el.getBoundingClientRect();
       const headerH = 60;
-      if (rect.top < headerH + 20 || rect.bottom > window.innerHeight - 60) {
+      if (rect.top < headerH + 20 || rect.bottom > window.innerHeight - 200) {
          window.scrollBy({ top: rect.top - window.innerHeight/3, behavior: 'smooth' });
       }
     }
