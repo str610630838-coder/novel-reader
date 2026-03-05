@@ -87,6 +87,13 @@ input{font:inherit;color:var(--text)}
 .header-actions button:hover{background:var(--accent-light)}
 .header-actions button.active{color:var(--accent);background:var(--accent-light)}
 
+/* ---- Source Select ---- */
+#sourceSelect{
+  margin-right:8px;padding:0 8px;border-radius:18px;
+  border:1px solid var(--border);background:var(--bg-card);
+  color:var(--text);outline:none;font-size:13px;
+}
+
 /* ---- Views ---- */
 .view{display:none;animation:fadeIn .25s ease}
 .view.active{display:block}
@@ -120,7 +127,7 @@ input{font:inherit;color:var(--text)}
   gap:12px;
 }
 .book-card{
-  display:flex;gap:12px;padding:14px;
+  display:flex;gap:12px;padding:14px;position:relative;
   background:var(--bg-card);border:1px solid var(--border);
   border-radius:var(--radius);cursor:pointer;
   transition:all .2s;
@@ -137,6 +144,16 @@ input{font:inherit;color:var(--text)}
 .book-meta h3{font-size:15px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .book-meta .author{font-size:13px;color:var(--text2);margin-bottom:6px}
 .book-meta .desc{font-size:12px;color:var(--text3);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.book-meta .time-ago{font-size:11px;color:var(--text3);margin-top:4px}
+
+/* delete btn on cards */
+.book-card .delete-btn{
+  position:absolute;top:8px;right:8px;width:24px;height:24px;
+  border-radius:50%;background:rgba(239,68,68,.1);color:#ef4444;
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+  opacity:0;transition:opacity .2s;z-index:10;
+}
+.book-card:hover .delete-btn{opacity:1}
 
 /* ---- Book Detail ---- */
 .book-detail-header{
@@ -165,6 +182,14 @@ input{font:inherit;color:var(--text)}
 .btn-outline{border:1px solid var(--border);color:var(--text)}
 .btn-outline:hover{border-color:var(--accent);color:var(--accent)}
 .btn-outline.bookmarked{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-danger{border:1px solid #fca5a5;color:#ef4444}
+.btn-danger:hover{background:#fef2f2}
+
+.source-badge{
+  display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;
+  background:var(--accent-light);color:var(--accent);margin-left:8px;
+}
 
 .chapter-search{
   display:flex;gap:8px;margin-bottom:12px;
@@ -196,11 +221,15 @@ input{font:inherit;color:var(--text)}
 .reader{
   max-width:800px;margin:0 auto;padding:20px 16px 100px;
   min-height:calc(100vh - var(--header-h));
+  position:relative;
 }
 .reader-title{
   font-size:20px;font-weight:700;text-align:center;
   margin-bottom:24px;padding-bottom:16px;
   border-bottom:1px solid var(--border);color:var(--text);
+}
+.reader-progress-bar{
+  text-align:center;font-size:12px;color:var(--text3);margin-bottom:12px;
 }
 .reader-content{
   font-size:var(--fs,18px);line-height:var(--lh,1.9);
@@ -212,6 +241,20 @@ input{font:inherit;color:var(--text)}
   padding:24px 0;margin-top:20px;border-top:1px solid var(--border);
 }
 .reader-nav .btn{min-width:100px;justify-content:center}
+.reader-progress-footer{
+  text-align:center;font-size:13px;color:var(--text3);
+  padding:12px 0;
+}
+
+/* tap zones overlay (mobile only) */
+.tap-zones{
+  position:fixed;top:var(--header-h);left:0;right:0;bottom:0;
+  display:none;z-index:50;
+}
+.tap-zone{position:absolute;top:0;bottom:0}
+.tap-zone-left{left:0;width:33.33%}
+.tap-zone-center{left:33.33%;width:33.34%}
+.tap-zone-right{left:66.67%;width:33.33%}
 
 /* Reader bottom bar (mobile) */
 .reader-toolbar{
@@ -219,7 +262,9 @@ input{font:inherit;color:var(--text)}
   background:var(--bg-header);border-top:1px solid var(--border);
   padding:8px 16px;display:none;gap:8px;z-index:100;
   box-shadow:0 -2px 6px rgba(0,0,0,.06);
+  transition:transform .3s;
 }
+.reader-toolbar.hidden{transform:translateY(100%)}
 .reader-toolbar button{
   flex:1;padding:10px;border-radius:8px;font-size:13px;
   display:flex;flex-direction:column;align-items:center;gap:2px;
@@ -227,9 +272,29 @@ input{font:inherit;color:var(--text)}
 .reader-toolbar button span{font-size:18px}
 .reader-toolbar button:hover{background:var(--accent-light)}
 
+/* ---- Search status ---- */
+.search-status{
+  display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;
+  justify-content:center;
+}
+.search-status-item{
+  padding:3px 10px;border-radius:12px;font-size:11px;
+  border:1px solid var(--border);
+}
+.search-status-item.searching{background:var(--accent-light);color:var(--accent);border-color:var(--accent)}
+.search-status-item.done{background:#dcfce7;color:#16a34a;border-color:#86efac}
+.search-status-item.failed{background:#fef2f2;color:#ef4444;border-color:#fca5a5}
+
 /* ---- Bookshelf ---- */
 .bookshelf-empty{text-align:center;padding:60px 20px;color:var(--text2)}
 .bookshelf-empty svg{width:64px;height:64px;color:var(--text3);margin-bottom:16px}
+.bookshelf-actions{
+  display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;
+}
+.bookshelf-actions select{
+  padding:5px 10px;border:1px solid var(--border);border-radius:6px;
+  background:var(--bg-card);color:var(--text);font-size:13px;outline:none;
+}
 
 /* ---- Settings Panel ---- */
 .settings-overlay{
@@ -283,9 +348,12 @@ input{font:inherit;color:var(--text)}
   .reader{padding-bottom:140px}
   .home-hero h1{font-size:22px}
   .container{padding:12px}
+  .tap-zones{display:block}
+  .book-card .delete-btn{opacity:1}
 }
 @media(min-width:641px){
   .reader-toolbar{display:none!important}
+  .tap-zones{display:none!important}
 }
 
 /* scrollbar */
@@ -293,21 +361,23 @@ input{font:inherit;color:var(--text)}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+
+/* hidden file input */
+.hidden-input{position:absolute;width:0;height:0;opacity:0;overflow:hidden}
 </style>
 <script src="api-client.js"></script>
 </head>
 <body>
 
 <!-- Header -->
-<header class="header">
+<header class="header" id="mainHeader">
   <button class="header-back" id="backBtn" onclick="goBack()" title="返回">←</button>
   <div class="header-logo" onclick="showView('home')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
     <span>推理小说</span>
   </div>
   <div class="search-box">
-    <select id="sourceSelect" style="margin-right:8px; padding:0 8px; border-radius:18px; border:1px solid var(--border); background:var(--bg-card); color:var(--text); outline:none;">
-    </select>
+    <select id="sourceSelect"></select>
     <input type="text" id="searchInput" placeholder="搜索推理小说..." autocomplete="off">
     <button onclick="doSearch()">搜索</button>
   </div>
@@ -341,6 +411,7 @@ input{font:inherit;color:var(--text)}
 <div class="view" id="searchView">
   <div class="container">
     <div class="section-title" id="searchTitle">搜索结果</div>
+    <div id="searchStatus"></div>
     <div id="searchResults"></div>
   </div>
 </div>
@@ -353,6 +424,11 @@ input{font:inherit;color:var(--text)}
 <!-- Reader View -->
 <div class="view" id="readerView">
   <div class="reader" id="readerArea"></div>
+  <div class="tap-zones" id="tapZones">
+    <div class="tap-zone tap-zone-left" onclick="prevChapter()"></div>
+    <div class="tap-zone tap-zone-center" onclick="toggleReaderToolbar()"></div>
+    <div class="tap-zone tap-zone-right" onclick="nextChapter()"></div>
+  </div>
   <div class="reader-toolbar" id="readerToolbar">
     <button onclick="prevChapter()"><span>◀</span>上一章</button>
     <button onclick="showChapterDrawer()"><span>☰</span>目录</button>
@@ -364,7 +440,11 @@ input{font:inherit;color:var(--text)}
 <!-- Bookshelf View -->
 <div class="view" id="bookshelfView">
   <div class="container">
-    <div class="section-title">我的书架</div>
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+      我的书架
+      <span style="font-size:13px;font-weight:400;color:var(--text3)" id="shelfCount"></span>
+    </div>
+    <div class="bookshelf-actions" id="bookshelfActions"></div>
     <div id="bookshelfContent"></div>
   </div>
 </div>
@@ -400,7 +480,32 @@ input{font:inherit;color:var(--text)}
   </div>
 </div>
 
+<!-- Hidden file input for import -->
+<input type="file" class="hidden-input" id="importFileInput" accept=".json" onchange="handleImportFile(event)">
+
 <script>
+function safeLoadJSON(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
+  } catch (e) {
+    return fallback;
+  }
+}
+
+const SOURCE_PREF_KEY = 'sourcePref';
+const SOURCE_HEALTH_KEY = 'sourceHealth';
+const SOURCE_COOLDOWN_BASE_MS = 2 * 60 * 1000;
+const BOOK_SOURCE_KEY = 'bookSourceMap';
+
+// =====================================================
+// Source categories
+// =====================================================
+const SOURCE_CATEGORIES = {
+  '出版文学': ['luoxia', 'luoxia_www', 'kanunu8', 'cs99', 'b111'],
+  '网络小说': ['bpshu', 'qianbi', 'qianbi_com', 'tianlai'],
+  '经典名著': ['xyyuedu'],
+};
+
 // =====================================================
 // State
 // =====================================================
@@ -411,13 +516,20 @@ const S = {
   chapters: [],
   chapterIdx: -1,
   chapterContent: null,
-  bookshelf: JSON.parse(localStorage.getItem('shelf') || '[]'),
-  history: JSON.parse(localStorage.getItem('hist') || '[]'),
+  bookshelf: safeLoadJSON('shelf', []),
+  history: safeLoadJSON('hist', []),
   fontSize: parseInt(localStorage.getItem('fs') || '18'),
   lineHeight: parseFloat(localStorage.getItem('lh') || '1.9'),
   theme: localStorage.getItem('theme') || 'light',
   chaptersReversed: false,
   viewStack: [],
+  searching: false,
+  sourceHealth: safeLoadJSON(SOURCE_HEALTH_KEY, {}),
+  searchDebounceTimer: null,
+  bookSourceMap: safeLoadJSON(BOOK_SOURCE_KEY, {}),
+  shelfSort: localStorage.getItem('shelfSort') || 'recent',
+  historyExpanded: false,
+  toolbarVisible: true,
 };
 
 // init theme
@@ -439,10 +551,23 @@ function showView(name, pushStack = true) {
   const back = document.getElementById('backBtn');
   back.classList.toggle('show', name !== 'home');
 
+  // show/hide header in reader
+  document.getElementById('mainHeader').style.display = name === 'reader' ? '' : '';
+
   if (name === 'bookshelf') renderBookshelf();
   if (name === 'home') renderHistory();
-  if (name === 'reader') document.getElementById('readerToolbar').style.display = '';
-  else document.getElementById('readerToolbar').style.display = 'none';
+
+  const toolbar = document.getElementById('readerToolbar');
+  const tapZones = document.getElementById('tapZones');
+  if (name === 'reader') {
+    toolbar.style.display = '';
+    toolbar.classList.remove('hidden');
+    tapZones.style.display = '';
+    S.toolbarVisible = true;
+  } else {
+    toolbar.style.display = 'none';
+    tapZones.style.display = 'none';
+  }
 
   if (name !== 'reader') window.scrollTo(0, 0);
 }
@@ -468,41 +593,256 @@ function loadSources() {
   if (typeof SOURCES === 'undefined') return;
   const sel = document.getElementById('sourceSelect');
   sel.innerHTML = '';
+
+  // Smart auto option
+  const autoOpt = document.createElement('option');
+  autoOpt.value = '__auto';
+  autoOpt.textContent = '智能书源（自动）';
+  sel.appendChild(autoOpt);
+
+  // Published only option
+  const pubOpt = document.createElement('option');
+  pubOpt.value = '__published';
+  pubOpt.textContent = '仅搜出版源';
+  sel.appendChild(pubOpt);
+
+  // Group by category
+  const cats = {};
   Object.keys(SOURCES).forEach(id => {
-    const opt = document.createElement('option');
-    opt.value = id;
-    opt.textContent = SOURCES[id].name;
-    sel.appendChild(opt);
+    const cat = SOURCES[id].category || '其他';
+    if (!cats[cat]) cats[cat] = [];
+    cats[cat].push(id);
   });
-  sel.value = 'bpshu';
+
+  Object.keys(cats).forEach(cat => {
+    const group = document.createElement('optgroup');
+    group.label = cat;
+    cats[cat].forEach(id => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = SOURCES[id].name;
+      group.appendChild(opt);
+    });
+    sel.appendChild(group);
+  });
+
+  const pref = localStorage.getItem(SOURCE_PREF_KEY) || '__auto';
+  sel.value = (SOURCES[pref] || pref === '__auto' || pref === '__published') ? pref : '__auto';
+  sel.addEventListener('change', () => {
+    localStorage.setItem(SOURCE_PREF_KEY, sel.value || '__auto');
+  });
+}
+
+function getSourceEngine(sourceId) {
+  const src = (typeof SOURCES !== 'undefined' && SOURCES[sourceId]) ? SOURCES[sourceId] : null;
+  return (src && src.engine) || sourceId;
+}
+
+function upsertSourceHealth(sourceId) {
+  if (!S.sourceHealth[sourceId]) {
+    S.sourceHealth[sourceId] = {
+      ok: 0, fail: 0, cooldownUntil: 0, lastError: '', lastAt: 0,
+    };
+  }
+  return S.sourceHealth[sourceId];
+}
+
+function setSourceHealth(sourceId, isOk, message) {
+  const h = upsertSourceHealth(sourceId);
+  h.lastAt = Date.now();
+  if (isOk) {
+    h.ok += 1;
+    h.fail = Math.max(0, h.fail - 1);
+    h.cooldownUntil = 0;
+    h.lastError = '';
+  } else {
+    h.fail += 1;
+    const cooldown = SOURCE_COOLDOWN_BASE_MS * Math.min(6, h.fail);
+    h.cooldownUntil = Date.now() + cooldown;
+    h.lastError = (message || '').slice(0, 120);
+  }
+  localStorage.setItem(SOURCE_HEALTH_KEY, JSON.stringify(S.sourceHealth));
+}
+
+function sourceScore(sourceId) {
+  const h = S.sourceHealth[sourceId] || {};
+  const inCooldown = h.cooldownUntil && h.cooldownUntil > Date.now();
+  const ok = h.ok || 0;
+  const fail = h.fail || 0;
+  return ok * 3 - fail * 2 - (inCooldown ? 100 : 0);
+}
+
+function getSearchableSources(preferredSource) {
+  const all = Object.keys(SOURCES || {});
+  if (preferredSource === '__published') {
+    const pubCats = ['出版文学', '经典名著'];
+    return all.filter(id => {
+      const cat = SOURCES[id].category || '其他';
+      return pubCats.includes(cat) && getSourceEngine(id) !== 'kanunu8';
+    });
+  }
+  return all.filter(id => getSourceEngine(id) !== 'kanunu8');
+}
+
+function buildSearchPlan(preferredSource) {
+  const all = Object.keys(SOURCES || {});
+  const sorted = [...all].sort((a, b) => sourceScore(b) - sourceScore(a));
+  if (!preferredSource || preferredSource === '__auto') return sorted;
+  if (preferredSource === '__published') {
+    return getSearchableSources('__published').sort((a, b) => sourceScore(b) - sourceScore(a));
+  }
+
+  const first = [preferredSource];
+  const sameEngine = sorted.filter(id => id !== preferredSource && getSourceEngine(id) === getSourceEngine(preferredSource));
+  const rest = sorted.filter(id => id !== preferredSource && getSourceEngine(id) !== getSourceEngine(preferredSource));
+  return [...first, ...sameEngine, ...rest];
+}
+
+function sourceName(sourceId) {
+  return (SOURCES[sourceId] && SOURCES[sourceId].name) || sourceId;
 }
 
 async function doSearch() {
   const q = document.getElementById('searchInput').value.trim();
   if (!q) return;
+  if (q.length < 2) {
+    showView('search');
+    document.getElementById('searchTitle').textContent = '搜索结果';
+    document.getElementById('searchResults').innerHTML = '<div class="error-msg">关键词至少 2 个字</div>';
+    return;
+  }
+  if (S.searching) return;
 
-  const source = document.getElementById('sourceSelect').value || 'bpshu';
+  const preferredSource = document.getElementById('sourceSelect').value || '__auto';
+  const isParallel = preferredSource === '__auto' || preferredSource === '__published';
   S.searchResults = [];
+  S.searching = true;
 
   showView('search');
   document.getElementById('searchTitle').textContent = `搜索 "${q}" 的结果`;
+  document.getElementById('searchStatus').innerHTML = '';
   document.getElementById('searchResults').innerHTML = '<div class="loading">搜索中...</div>';
 
   try {
-    const data = await searchBooks(q, source);
-
-    if (data.error) {
-      const hint = '若仍无法使用，请尝试在顶部切换其他书源（如铅笔小说、落霞读书）';
-      document.getElementById('searchResults').innerHTML = `<div class="error-msg">${esc(data.error)}<br><small style="color:var(--text2);margin-top:8px;display:block">${hint}</small><br><button onclick="doSearch()">重试</button></div>`;
-      return;
+    if (isParallel) {
+      await doParallelSearch(q, preferredSource);
+    } else {
+      await doSerialSearch(q, preferredSource);
     }
-
-    S.searchResults = (data.results || []).map(r => ({ ...r, source }));
-    renderSearchResults();
   } catch (e) {
     const msg = e.message || '网络错误';
     document.getElementById('searchResults').innerHTML = `<div class="error-msg">${esc(msg)}<br><button onclick="doSearch()">重试</button></div>`;
+  } finally {
+    S.searching = false;
   }
+}
+
+async function doParallelSearch(q, mode) {
+  const plan = buildSearchPlan(mode);
+  const searchable = plan.filter(id => getSourceEngine(id) !== 'kanunu8');
+  // Deduplicate by engine to avoid redundant searches
+  const seen = new Set();
+  const unique = searchable.filter(id => {
+    const eng = getSourceEngine(id);
+    if (seen.has(eng)) return false;
+    seen.add(eng);
+    return true;
+  });
+
+  // Show status chips
+  const statusEl = document.getElementById('searchStatus');
+  const statusMap = {};
+  unique.forEach(id => { statusMap[id] = 'searching'; });
+  renderSearchStatus(statusMap);
+
+  const allResults = [];
+  const promises = unique.map(async (sourceId) => {
+    try {
+      const data = await searchBooks(q, sourceId);
+      if (data && !data.error && (data.results || []).length > 0) {
+        setSourceHealth(sourceId, true);
+        statusMap[sourceId] = 'done';
+        data.results.forEach(r => {
+          allResults.push({ ...r, source: r.source || sourceId });
+        });
+      } else {
+        setSourceHealth(sourceId, data && data.error ? false : true, data && data.error);
+        statusMap[sourceId] = (data && data.error) ? 'failed' : 'done';
+      }
+    } catch (err) {
+      setSourceHealth(sourceId, false, err.message);
+      statusMap[sourceId] = 'failed';
+    }
+    renderSearchStatus(statusMap);
+  });
+
+  await Promise.allSettled(promises);
+
+  // Deduplicate by title
+  const deduped = [];
+  const titleSet = new Set();
+  allResults.forEach(r => {
+    if (!titleSet.has(r.title)) {
+      titleSet.add(r.title);
+      deduped.push(r);
+    }
+  });
+
+  S.searchResults = deduped;
+  renderSearchResults();
+
+  if (!deduped.length) {
+    document.getElementById('searchResults').innerHTML = '<div class="empty-msg">未找到相关小说，请尝试更换关键词</div>';
+  }
+}
+
+async function doSerialSearch(q, preferredSource) {
+  const plan = buildSearchPlan(preferredSource);
+  let bestError = '';
+  let fallbackEmpty = null;
+  let fallbackSource = '';
+
+  for (let i = 0; i < plan.length; i++) {
+    const sourceId = plan[i];
+    document.getElementById('searchResults').innerHTML = `<div class="loading">搜索中（${i + 1}/${plan.length}）：${esc(sourceName(sourceId))}</div>`;
+    try {
+      const data = await searchBooks(q, sourceId);
+      if (data && !data.error && (data.results || []).length > 0) {
+        setSourceHealth(sourceId, true);
+        S.searchResults = data.results.map(r => ({ ...r, source: r.source || sourceId }));
+        localStorage.setItem(SOURCE_PREF_KEY, sourceId);
+        document.getElementById('sourceSelect').value = sourceId;
+        renderSearchResults();
+        return;
+      }
+      if (data && !data.error) {
+        setSourceHealth(sourceId, true);
+        if (!fallbackEmpty) { fallbackEmpty = data; fallbackSource = sourceId; }
+      } else {
+        const errMsg = (data && data.error) ? data.error : '未知错误';
+        setSourceHealth(sourceId, false, errMsg);
+        if (!bestError) bestError = errMsg;
+      }
+    } catch (err) {
+      setSourceHealth(sourceId, false, err.message);
+      if (!bestError) bestError = err.message;
+    }
+  }
+
+  if (fallbackEmpty) {
+    S.searchResults = [];
+    renderSearchResults();
+    return;
+  }
+
+  document.getElementById('searchResults').innerHTML = `<div class="error-msg">${esc(bestError || '搜索失败')}<br><button onclick="doSearch()">重试</button></div>`;
+}
+
+function renderSearchStatus(statusMap) {
+  const el = document.getElementById('searchStatus');
+  el.innerHTML = '<div class="search-status">' + Object.entries(statusMap).map(([id, status]) => {
+    return `<span class="search-status-item ${status}">${esc(sourceName(id).replace(/\s*\(.*\)/, ''))}</span>`;
+  }).join('') + '</div>';
 }
 
 function renderSearchResults() {
@@ -512,17 +852,40 @@ function renderSearchResults() {
     return;
   }
 
-  c.innerHTML = '<div class="book-grid">' + S.searchResults.map((b, i) => `
-    <div class="book-card" onclick="openBook(${i})">
-      <div class="book-cover">
-        ${b.cover ? `<img src="${b.cover}" alt="" onerror="this.parentElement.innerHTML='📖'">` : '📖'}
-      </div>
-      <div class="book-meta">
-        <h3>${esc(b.title)}</h3>
-        <div class="author">${esc(b.author)} ${b.source ? `<span style="font-size:12px;color:var(--accent)">[源:${b.source}]</span>` : ''}</div>
-        <div class="desc">${esc(b.desc)}</div>
-      </div>
-    </div>`).join('') + '</div>';
+  // Group by source
+  const grouped = {};
+  S.searchResults.forEach((b, i) => {
+    const src = b.source || 'unknown';
+    if (!grouped[src]) grouped[src] = [];
+    grouped[src].push({ ...b, _idx: i });
+  });
+
+  let html = '';
+  const keys = Object.keys(grouped);
+  if (keys.length > 1) {
+    // Multi-source: show grouped
+    keys.forEach(src => {
+      html += `<div class="section-title" style="font-size:14px;margin:16px 0 8px">${esc(sourceName(src))}</div>`;
+      html += '<div class="book-grid">' + grouped[src].map(b => bookCardHtml(b, b._idx)).join('') + '</div>';
+    });
+  } else {
+    html = '<div class="book-grid">' + S.searchResults.map((b, i) => bookCardHtml(b, i)).join('') + '</div>';
+  }
+
+  c.innerHTML = html;
+}
+
+function bookCardHtml(b, idx) {
+  return `<div class="book-card" onclick="openBook(${idx})">
+    <div class="book-cover">
+      ${b.cover ? `<img src="${b.cover}" alt="" onerror="this.parentElement.innerHTML='📖'">` : '📖'}
+    </div>
+    <div class="book-meta">
+      <h3>${esc(b.title)}</h3>
+      <div class="author">${esc(b.author)} <span class="source-badge">${esc((sourceName(b.source) || '').replace(/\s*\(.*\)/, ''))}</span></div>
+      <div class="desc">${esc(b.desc)}</div>
+    </div>
+  </div>`;
 }
 
 // =====================================================
@@ -535,17 +898,27 @@ async function openBook(idx) {
   showView('book');
   document.getElementById('bookDetail').innerHTML = '<div class="loading">加载书籍信息...</div>';
 
-  try {
-    const data = await getBook(book.url, book.source || 'bpshu');
+  // Check if we have a remembered source for this book
+  const rememberedSource = S.bookSourceMap[book.url] || book.source || 'bpshu';
 
-    if (data.error) {
-      document.getElementById('bookDetail').innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+  try {
+    const { data, sourceId } = await requestWithSourceFallback(
+      rememberedSource,
+      (src) => getBook(book.url, src)
+    );
+
+    if (!data || data.error) {
+      document.getElementById('bookDetail').innerHTML = `<div class="error-msg">${esc((data && data.error) || '加载失败')}</div>`;
       return;
     }
 
-    S.book = { ...book, ...data, bookUrl: book.url };
+    S.book = { ...book, ...data, bookUrl: book.url, source: sourceId };
     S.chapters = data.chapters || [];
     S.chaptersReversed = false;
+
+    // Remember source for this book
+    saveBookSource(book.url, sourceId);
+
     renderBookDetail();
   } catch (e) {
     document.getElementById('bookDetail').innerHTML = `<div class="error-msg">${esc(e.message || '加载失败')}</div>`;
@@ -556,21 +929,34 @@ async function openBookByUrl(url, source) {
   showView('book');
   document.getElementById('bookDetail').innerHTML = '<div class="loading">加载书籍信息...</div>';
 
-  try {
-    const data = await getBook(url, source || 'bpshu');
+  const rememberedSource = S.bookSourceMap[url] || source || 'bpshu';
 
-    if (data.error) {
-      document.getElementById('bookDetail').innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+  try {
+    const { data, sourceId } = await requestWithSourceFallback(
+      rememberedSource,
+      (src) => getBook(url, src)
+    );
+
+    if (!data || data.error) {
+      document.getElementById('bookDetail').innerHTML = `<div class="error-msg">${esc((data && data.error) || '加载失败')}</div>`;
       return;
     }
 
-    S.book = { ...data, bookUrl: url, url, source: source || 'bpshu' };
+    S.book = { ...data, bookUrl: url, url, source: sourceId };
     S.chapters = data.chapters || [];
     S.chaptersReversed = false;
+
+    saveBookSource(url, sourceId);
+
     renderBookDetail();
   } catch (e) {
     document.getElementById('bookDetail').innerHTML = `<div class="error-msg">${esc(e.message || '加载失败')}</div>`;
   }
+}
+
+function saveBookSource(bookUrl, sourceId) {
+  S.bookSourceMap[bookUrl] = sourceId;
+  localStorage.setItem(BOOK_SOURCE_KEY, JSON.stringify(S.bookSourceMap));
 }
 
 function renderBookDetail() {
@@ -580,6 +966,12 @@ function renderBookDetail() {
 
   const chapList = S.chaptersReversed ? [...S.chapters].reverse() : S.chapters;
 
+  // Source switch options
+  const allSources = Object.keys(SOURCES || {});
+  const sourceOptions = allSources.map(id =>
+    `<option value="${id}" ${id === b.source ? 'selected' : ''}>${esc(SOURCES[id].name)}</option>`
+  ).join('');
+
   document.getElementById('bookDetail').innerHTML = `
     <div class="book-detail-header">
       <div class="book-detail-cover">
@@ -588,6 +980,9 @@ function renderBookDetail() {
       <div class="book-detail-info">
         <h1>${esc(b.title)}</h1>
         <div class="author">作者：${esc(b.author)}</div>
+        <div style="font-size:12px;color:var(--text3);margin:6px 0">
+          当前源：<select style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);color:var(--text)" onchange="switchBookSource(this.value)">${sourceOptions}</select>
+        </div>
         <div class="desc">${esc(b.desc)}</div>
         <div class="book-detail-actions">
           <button class="btn btn-primary" onclick="startReading()">
@@ -616,6 +1011,11 @@ function renderBookDetail() {
                    data-title="${esc(ch.title)}">${esc(ch.title)}</a>`;
       }).join('')}
     </div>`;
+}
+
+function switchBookSource(newSource) {
+  if (!S.book || newSource === S.book.source) return;
+  openBookByUrl(S.book.bookUrl, newSource);
 }
 
 function filterChapters(q) {
@@ -652,13 +1052,17 @@ async function readChapter(idx) {
 
   try {
     const src = (S.book && S.book.source) || 'bpshu';
-    const data = await getChapter(ch.url, src);
+    const { data, sourceId } = await requestWithSourceFallback(
+      src,
+      (sid) => getChapter(ch.url, sid)
+    );
 
-    if (data.error) {
-      document.getElementById('readerArea').innerHTML = `<div class="error-msg">${esc(data.error)}<br><button onclick="readChapter(${idx})">重试</button></div>`;
+    if (!data || data.error) {
+      document.getElementById('readerArea').innerHTML = `<div class="error-msg">${esc((data && data.error) || '加载失败')}<br><button onclick="readChapter(${idx})">重试</button></div>`;
       return;
     }
 
+    if (S.book) S.book.source = sourceId;
     S.chapterContent = data;
     renderChapter();
     saveReadProgress(idx);
@@ -674,10 +1078,13 @@ function renderChapter() {
 
   const hasPrev = S.chapterIdx > 0;
   const hasNext = S.chapterIdx < S.chapters.length - 1;
+  const progressPct = S.chapters.length > 0 ? Math.round((S.chapterIdx + 1) / S.chapters.length * 100) : 0;
 
   document.getElementById('readerArea').innerHTML = `
     <div class="reader-title">${esc(d.title || S.chapters[S.chapterIdx]?.title || '')}</div>
+    <div class="reader-progress-bar">${progressPct}% · 第 ${S.chapterIdx + 1} / ${S.chapters.length} 章</div>
     <div class="reader-content">${paragraphs}</div>
+    <div class="reader-progress-footer">第 ${S.chapterIdx + 1} / ${S.chapters.length} 章</div>
     <div class="reader-nav">
       <button class="btn btn-outline" onclick="prevChapter()" ${hasPrev ? '' : 'disabled style="opacity:.4"'}>上一章</button>
       <button class="btn btn-outline" onclick="showView('book')">目录</button>
@@ -699,11 +1106,38 @@ function showChapterDrawer() {
   showView('book');
 }
 
-// keyboard nav
+function toggleReaderToolbar() {
+  const toolbar = document.getElementById('readerToolbar');
+  S.toolbarVisible = !S.toolbarVisible;
+  toolbar.classList.toggle('hidden', !S.toolbarVisible);
+}
+
+// Enhanced keyboard navigation
 document.addEventListener('keydown', e => {
   if (S.view !== 'reader') return;
   if (e.key === 'ArrowLeft') prevChapter();
   if (e.key === 'ArrowRight') nextChapter();
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    showView('book');
+  }
+  if (e.key === ' ' || e.key === 'PageDown') {
+    // Check if at bottom of page
+    const scrollBottom = window.innerHeight + window.scrollY;
+    const docHeight = document.documentElement.scrollHeight;
+    if (scrollBottom >= docHeight - 10) {
+      e.preventDefault();
+      nextChapter();
+    }
+    // else let default scroll happen
+  }
+  if ((e.key === ' ' && e.shiftKey) || e.key === 'PageUp') {
+    // Check if at top
+    if (window.scrollY <= 10) {
+      e.preventDefault();
+      prevChapter();
+    }
+  }
 });
 
 // =====================================================
@@ -722,6 +1156,7 @@ function toggleBookmark() {
       url: S.book.bookUrl,
       source: S.book.source || '',
       addedAt: Date.now(),
+      lastReadAt: Date.now(),
     });
   }
   localStorage.setItem('shelf', JSON.stringify(S.bookshelf));
@@ -751,22 +1186,66 @@ function saveReadProgress(chapterIdx) {
   if (bk) {
     bk.lastChapter = chapterIdx;
     bk.lastChapterTitle = S.chapters[chapterIdx]?.title || '';
+    bk.lastReadAt = Date.now();
     localStorage.setItem('shelf', JSON.stringify(S.bookshelf));
   }
+
+  // remember source
+  saveBookSource(key, S.book.source);
 }
 
 function getLastRead(bookUrl) {
   return S.history.find(h => h.url === bookUrl) || null;
 }
 
+function timeAgo(ts) {
+  if (!ts) return '';
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return '刚刚';
+  if (mins < 60) return mins + '分钟前';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + '小时前';
+  const days = Math.floor(hours / 24);
+  if (days < 30) return days + '天前';
+  const months = Math.floor(days / 30);
+  return months + '个月前';
+}
+
 function renderBookshelf() {
   const c = document.getElementById('bookshelfContent');
+  const countEl = document.getElementById('shelfCount');
+  const actionsEl = document.getElementById('bookshelfActions');
+  countEl.textContent = S.bookshelf.length ? `${S.bookshelf.length} 本` : '';
+
   if (!S.bookshelf.length) {
+    actionsEl.innerHTML = '';
     c.innerHTML = '<div class="bookshelf-empty"><div style="font-size:48px;margin-bottom:16px">📚</div><p>书架空空如也</p><p style="margin-top:8px;font-size:14px">搜索并添加你喜欢的推理小说吧</p></div>';
     return;
   }
-  c.innerHTML = '<div class="book-grid">' + S.bookshelf.map(b => `
+
+  // Actions bar
+  actionsEl.innerHTML = `
+    <select onchange="changeShelfSort(this.value)">
+      <option value="recent" ${S.shelfSort === 'recent' ? 'selected' : ''}>按最近阅读</option>
+      <option value="added" ${S.shelfSort === 'added' ? 'selected' : ''}>按添加时间</option>
+    </select>
+    <button class="btn btn-sm btn-outline" onclick="exportBookshelf()">导出书架</button>
+    <button class="btn btn-sm btn-outline" onclick="document.getElementById('importFileInput').click()">导入书架</button>
+    <button class="btn btn-sm btn-danger" onclick="clearBookshelf()">清空书架</button>
+  `;
+
+  // Sort
+  let sorted = [...S.bookshelf];
+  if (S.shelfSort === 'recent') {
+    sorted.sort((a, b) => (b.lastReadAt || b.addedAt || 0) - (a.lastReadAt || a.addedAt || 0));
+  } else {
+    sorted.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+  }
+
+  c.innerHTML = '<div class="book-grid">' + sorted.map((b, i) => `
     <div class="book-card" onclick="openBookByUrl('${esc(b.url)}', '${esc(b.source || '')}')">
+      <button class="delete-btn" onclick="event.stopPropagation();removeFromShelf('${esc(b.url)}')" title="删除">✕</button>
       <div class="book-cover">
         ${b.cover ? `<img src="${b.cover}" alt="" onerror="this.parentElement.innerHTML='📖'">` : '📖'}
       </div>
@@ -774,25 +1253,138 @@ function renderBookshelf() {
         <h3>${esc(b.title)}</h3>
         <div class="author">${esc(b.author || '')}</div>
         <div class="desc">${b.lastChapterTitle ? '上次读到：' + esc(b.lastChapterTitle) : ''}</div>
+        <div class="time-ago">${timeAgo(b.lastReadAt || b.addedAt)}</div>
       </div>
     </div>`).join('') + '</div>';
+}
+
+function changeShelfSort(val) {
+  S.shelfSort = val;
+  localStorage.setItem('shelfSort', val);
+  renderBookshelf();
+}
+
+function removeFromShelf(url) {
+  S.bookshelf = S.bookshelf.filter(x => x.url !== url);
+  localStorage.setItem('shelf', JSON.stringify(S.bookshelf));
+  renderBookshelf();
+}
+
+function clearBookshelf() {
+  if (!confirm('确定要清空书架吗？此操作不可恢复。')) return;
+  S.bookshelf = [];
+  localStorage.setItem('shelf', JSON.stringify(S.bookshelf));
+  renderBookshelf();
+}
+
+function exportBookshelf() {
+  const data = {
+    bookshelf: S.bookshelf,
+    history: S.history,
+    bookSourceMap: S.bookSourceMap,
+    exportedAt: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `bookshelf-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function handleImportFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.bookshelf && Array.isArray(data.bookshelf)) {
+        // Merge: add new books, don't duplicate
+        const existing = new Set(S.bookshelf.map(b => b.url));
+        data.bookshelf.forEach(b => {
+          if (!existing.has(b.url)) {
+            S.bookshelf.push(b);
+            existing.add(b.url);
+          }
+        });
+        localStorage.setItem('shelf', JSON.stringify(S.bookshelf));
+      }
+      if (data.history && Array.isArray(data.history)) {
+        const existing = new Set(S.history.map(h => h.url));
+        data.history.forEach(h => {
+          if (!existing.has(h.url)) {
+            S.history.push(h);
+            existing.add(h.url);
+          }
+        });
+        localStorage.setItem('hist', JSON.stringify(S.history));
+      }
+      if (data.bookSourceMap) {
+        Object.assign(S.bookSourceMap, data.bookSourceMap);
+        localStorage.setItem(BOOK_SOURCE_KEY, JSON.stringify(S.bookSourceMap));
+      }
+      renderBookshelf();
+      alert('导入成功！');
+    } catch (err) {
+      alert('导入失败：文件格式不正确');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
 }
 
 function renderHistory() {
   const c = document.getElementById('historySection');
   if (!S.history.length) { c.innerHTML = ''; return; }
+
+  const limit = S.historyExpanded ? S.history.length : 6;
+  const shown = S.history.slice(0, limit);
+
   c.innerHTML = `
-    <div class="section-title">最近阅读</div>
-    <div class="book-grid">${S.history.slice(0, 6).map(h => `
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+      最近阅读
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm btn-danger" onclick="clearHistory()" style="font-size:11px">清除历史</button>
+      </div>
+    </div>
+    <div class="book-grid">${shown.map((h, i) => `
       <div class="book-card" onclick="openBookByUrl('${esc(h.url)}', '${esc(h.source || '')}')">
+        <button class="delete-btn" onclick="event.stopPropagation();removeHistory(${i})" title="删除">✕</button>
         <div class="book-cover">📖</div>
         <div class="book-meta">
           <h3>${esc(h.title)}</h3>
           <div class="author">${esc(h.author || '')}</div>
           <div class="desc">读到：${esc(h.chapterTitle || '')}</div>
+          <div class="time-ago">${timeAgo(h.time)}</div>
         </div>
       </div>`).join('')}
-    </div>`;
+    </div>
+    ${S.history.length > 6 ? `
+      <div style="text-align:center;margin-top:12px">
+        <button class="btn btn-sm btn-outline" onclick="toggleHistoryExpand()">
+          ${S.historyExpanded ? '收起' : `显示全部 (${S.history.length}条)`}
+        </button>
+      </div>` : ''}`;
+}
+
+function toggleHistoryExpand() {
+  S.historyExpanded = !S.historyExpanded;
+  renderHistory();
+}
+
+function removeHistory(idx) {
+  S.history.splice(idx, 1);
+  localStorage.setItem('hist', JSON.stringify(S.history));
+  renderHistory();
+}
+
+function clearHistory() {
+  if (!confirm('确定要清除所有阅读历史吗？')) return;
+  S.history = [];
+  localStorage.setItem('hist', JSON.stringify(S.history));
+  renderHistory();
 }
 
 // =====================================================
@@ -851,9 +1443,54 @@ function esc(s) {
   return d.innerHTML;
 }
 
+function buildSourceFallbackChain(preferredSource) {
+  const all = Object.keys(SOURCES || {});
+  if (!preferredSource || !SOURCES[preferredSource]) return all;
+  const engine = getSourceEngine(preferredSource);
+  const siblings = all.filter(id => id !== preferredSource && getSourceEngine(id) === engine)
+    .sort((a, b) => sourceScore(b) - sourceScore(a));
+  const rest = all.filter(id => id !== preferredSource && getSourceEngine(id) !== engine)
+    .sort((a, b) => sourceScore(b) - sourceScore(a));
+  return [preferredSource, ...siblings, ...rest];
+}
+
+async function requestWithSourceFallback(preferredSource, requestFn) {
+  const chain = buildSourceFallbackChain(preferredSource);
+  let lastData = null;
+  let lastSource = preferredSource || chain[0] || 'bpshu';
+  for (let i = 0; i < chain.length; i++) {
+    const sid = chain[i];
+    try {
+      const data = await requestFn(sid);
+      if (data && !data.error) {
+        setSourceHealth(sid, true);
+        return { data, sourceId: sid };
+      }
+      setSourceHealth(sid, false, data && data.error ? data.error : '请求失败');
+      lastData = data;
+      lastSource = sid;
+    } catch (e) {
+      setSourceHealth(sid, false, e.message || '请求失败');
+      lastData = { error: e.message || '请求失败' };
+      lastSource = sid;
+    }
+  }
+  return { data: lastData || { error: '请求失败' }, sourceId: lastSource };
+}
+
 // init
 renderHistory();
 loadSources();
+
+const searchInput = document.getElementById('searchInput');
+searchInput.addEventListener('input', () => {
+  if (S.searchDebounceTimer) clearTimeout(S.searchDebounceTimer);
+  const q = searchInput.value.trim();
+  if (q.length < 2) return;
+  S.searchDebounceTimer = setTimeout(() => {
+    if (document.activeElement === searchInput) doSearch();
+  }, 420);
+});
 </script>
 </body>
 </html>
