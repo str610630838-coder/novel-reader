@@ -989,7 +989,8 @@ function renderChapter() {
   S.ttsCurrentSentenceIdx = 0;
   
   const paragraphs = d.content.split('\n').filter(l => l.trim()).map(l => {
-    const parts = l.trim().split(/([。！？.!?]+)/);
+    // 将结束标点和可能紧跟的右引号/右括号作为整体进行断句，避免右双引号单邻一句
+    const parts = l.trim().split(/([。！？.!?]+[”"’'」』）\]】]?)/);
     let pContent = '';
     for(let i=0; i<parts.length; i+=2) {
       const text = parts[i];
@@ -1002,7 +1003,9 @@ function renderChapter() {
         speakText = speakText.replace(/\d+\s*[\/|]\s*\d+/g, '');
         speakText = speakText.replace(/[\[【]\s*\d+\s*[\]】]/g, '');
         speakText = speakText.replace(/本章未完.*/g, '');
-        // 过滤标点符号，仅保留汉字、字母、数字、基础断句标点，其余替换为空格
+        // 彻底清除所有引号和括号，避免某些引擎强行读出“右双引号”
+        speakText = speakText.replace(/[“”‘’"'「」『』《》〈〉【】\[\]()（）]/g, '');
+        // 过滤其他标点符号，仅保留汉字、字母、数字、基础断句标点，其余替换为空格
         speakText = speakText.replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s，。！？,.!?]/g, ' ');
 
         const id = `tts-s-${S.ttsSentences.length}`;
