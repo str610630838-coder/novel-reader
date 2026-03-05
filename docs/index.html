@@ -364,6 +364,44 @@ input{font:inherit;color:var(--text)}
 
 /* hidden file input */
 .hidden-input{position:absolute;width:0;height:0;opacity:0;overflow:hidden}
+
+/* ---- TTS ---- */
+.tts-active{
+  background:var(--accent-light);border-radius:4px;
+  padding:2px 4px;margin:-2px -4px;
+  transition:background .3s ease;
+}
+[data-theme="dark"] .tts-active{background:rgba(129,140,248,.15)}
+[data-theme="sepia"] .tts-active{background:rgba(180,83,9,.1)}
+
+.tts-panel{
+  position:fixed;bottom:0;left:0;right:0;z-index:150;
+  background:var(--bg-header);border-top:1px solid var(--border);
+  padding:10px 16px;display:none;
+  box-shadow:0 -2px 8px rgba(0,0,0,.08);
+  transition:transform .3s;
+}
+.tts-panel.show{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px}
+.tts-panel button{
+  padding:6px 14px;border-radius:6px;font-size:13px;
+  border:1px solid var(--border);background:var(--bg-card);
+  display:inline-flex;align-items:center;gap:4px;
+}
+.tts-panel button:hover{border-color:var(--accent);color:var(--accent)}
+.tts-panel .tts-rate-group{display:flex;align-items:center;gap:6px}
+.tts-panel .tts-rate-val{font-size:13px;min-width:36px;text-align:center;font-weight:600}
+.tts-panel select{
+  padding:4px 8px;border:1px solid var(--border);border-radius:6px;
+  background:var(--bg-card);color:var(--text);font-size:12px;
+  max-width:140px;outline:none;
+}
+.tts-panel .tts-progress{font-size:12px;color:var(--text2)}
+@media(max-width:640px){
+  .reader.tts-reading{padding-bottom:180px}
+}
+@media(min-width:641px){
+  .tts-panel{max-width:800px;margin:0 auto;left:50%;transform:translateX(-50%);border-radius:12px 12px 0 0}
+}
 </style>
 <script src="api-client.js"></script>
 </head>
@@ -432,6 +470,7 @@ input{font:inherit;color:var(--text)}
   <div class="reader-toolbar" id="readerToolbar">
     <button onclick="prevChapter()"><span>◀</span>上一章</button>
     <button onclick="showChapterDrawer()"><span>☰</span>目录</button>
+    <button onclick="ttsToggle()"><span>🔊</span>朗读</button>
     <button onclick="toggleSettings()"><span>⚙️</span>设置</button>
     <button onclick="nextChapter()"><span>▶</span>下一章</button>
   </div>
@@ -447,6 +486,19 @@ input{font:inherit;color:var(--text)}
     <div class="bookshelf-actions" id="bookshelfActions"></div>
     <div id="bookshelfContent"></div>
   </div>
+</div>
+
+<!-- TTS Control Panel -->
+<div class="tts-panel" id="ttsPanel">
+  <button onclick="ttsPauseResume()" id="ttsPauseBtn">⏸ 暂停</button>
+  <button onclick="ttsStop()">⏹ 停止</button>
+  <div class="tts-rate-group">
+    <button onclick="ttsSetRate(S.ttsRate - 0.2)">−</button>
+    <span class="tts-rate-val" id="ttsRateVal">1.0x</span>
+    <button onclick="ttsSetRate(S.ttsRate + 0.2)">+</button>
+  </div>
+  <select id="ttsVoiceSelect" onchange="ttsChangeVoice(this.value)"></select>
+  <span class="tts-progress" id="ttsProgress"></span>
 </div>
 
 <!-- Settings Overlay -->
@@ -475,6 +527,20 @@ input{font:inherit;color:var(--text)}
         <button class="theme-btn active" data-theme="light" onclick="setTheme('light')">浅色</button>
         <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')">深色</button>
         <button class="theme-btn" data-theme="sepia" onclick="setTheme('sepia')">护眼</button>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">朗读语速</span>
+      <div class="setting-control">
+        <button onclick="ttsSetRate(S.ttsRate - 0.2)">−</button>
+        <span class="val" id="ttsSettingsRateVal">1.0x</span>
+        <button onclick="ttsSetRate(S.ttsRate + 0.2)">+</button>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">朗读语音</span>
+      <div class="setting-control">
+        <select id="ttsSettingsVoiceSelect" onchange="ttsChangeVoice(this.value)" style="max-width:160px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text);font-size:12px"></select>
       </div>
     </div>
   </div>
@@ -530,6 +596,12 @@ const S = {
   shelfSort: localStorage.getItem('shelfSort') || 'recent',
   historyExpanded: false,
   toolbarVisible: true,
+  ttsPlaying: false,
+  ttsPaused: false,
+  ttsRate: parseFloat(localStorage.getItem('ttsRate') || '1.0'),
+  ttsVoice: localStorage.getItem('ttsVoice') || '',
+  ttsParagraphIdx: 0,
+  ttsVoices: [],
 };
 
 // init theme
@@ -569,7 +641,10 @@ function showView(name, pushStack = true) {
     tapZones.style.display = 'none';
   }
 
-  if (name !== 'reader') window.scrollTo(0, 0);
+  if (name !== 'reader') {
+    ttsStop();
+    window.scrollTo(0, 0);
+  }
 }
 
 function goBack() {
@@ -1073,8 +1148,11 @@ async function readChapter(idx) {
 }
 
 function renderChapter() {
+  // Only cancel speech audio; preserve ttsPlaying flag for auto-next-chapter
+  speechSynthesis.cancel();
+  document.querySelectorAll('.tts-active').forEach(el => el.classList.remove('tts-active'));
   const d = S.chapterContent;
-  const paragraphs = d.content.split('\n').filter(l => l.trim()).map(l => `<p>${esc(l.trim())}</p>`).join('');
+  const paragraphs = d.content.split('\n').filter(l => l.trim()).map((l, i) => `<p data-idx="${i}">${esc(l.trim())}</p>`).join('');
 
   const hasPrev = S.chapterIdx > 0;
   const hasNext = S.chapterIdx < S.chapters.length - 1;
@@ -1088,6 +1166,7 @@ function renderChapter() {
     <div class="reader-nav">
       <button class="btn btn-outline" onclick="prevChapter()" ${hasPrev ? '' : 'disabled style="opacity:.4"'}>上一章</button>
       <button class="btn btn-outline" onclick="showView('book')">目录</button>
+      <button class="btn btn-outline" onclick="ttsToggle()">🔊 朗读</button>
       <button class="btn btn-outline" onclick="nextChapter()" ${hasNext ? '' : 'disabled style="opacity:.4"'}>下一章</button>
     </div>`;
 
@@ -1478,9 +1557,185 @@ async function requestWithSourceFallback(preferredSource, requestFn) {
   return { data: lastData || { error: '请求失败' }, sourceId: lastSource };
 }
 
+// =====================================================
+// TTS (Text-to-Speech)
+// =====================================================
+function ttsInit() {
+  const loadVoices = () => {
+    S.ttsVoices = speechSynthesis.getVoices();
+    if (S.ttsVoices.length) ttsPickVoice();
+    ttsPopulateSelects();
+  };
+  loadVoices();
+  speechSynthesis.addEventListener('voiceschanged', loadVoices);
+  document.getElementById('ttsRateVal').textContent = S.ttsRate.toFixed(1) + 'x';
+  document.getElementById('ttsSettingsRateVal').textContent = S.ttsRate.toFixed(1) + 'x';
+}
+
+function ttsPickVoice() {
+  if (S.ttsVoice) {
+    const found = S.ttsVoices.find(v => v.name === S.ttsVoice);
+    if (found) return;
+  }
+  const zh = S.ttsVoices.filter(v => /zh|cmn|chinese/i.test(v.lang));
+  const pref = [
+    v => /xiaoxiao|晓晓/i.test(v.name),
+    v => /ting.?ting/i.test(v.name),
+    v => /google.*普通话|google.*chinese/i.test(v.name),
+    v => /female|女/i.test(v.name),
+  ];
+  for (const test of pref) {
+    const match = zh.find(test);
+    if (match) { S.ttsVoice = match.name; localStorage.setItem('ttsVoice', match.name); return; }
+  }
+  if (zh.length) { S.ttsVoice = zh[0].name; localStorage.setItem('ttsVoice', zh[0].name); return; }
+  if (S.ttsVoices.length) { S.ttsVoice = S.ttsVoices[0].name; localStorage.setItem('ttsVoice', S.ttsVoices[0].name); }
+}
+
+function ttsPopulateSelects() {
+  const html = S.ttsVoices.map(v =>
+    `<option value="${esc(v.name)}" ${v.name === S.ttsVoice ? 'selected' : ''}>${esc(v.name)} (${v.lang})</option>`
+  ).join('');
+  document.getElementById('ttsVoiceSelect').innerHTML = html;
+  document.getElementById('ttsSettingsVoiceSelect').innerHTML = html;
+}
+
+function ttsChangeVoice(name) {
+  S.ttsVoice = name;
+  localStorage.setItem('ttsVoice', name);
+  document.getElementById('ttsVoiceSelect').value = name;
+  document.getElementById('ttsSettingsVoiceSelect').value = name;
+  if (S.ttsPlaying) {
+    const idx = S.ttsParagraphIdx;
+    speechSynthesis.cancel();
+    ttsSpeakParagraph(idx);
+  }
+}
+
+function ttsToggle() {
+  if (S.ttsPlaying) {
+    ttsStop();
+  } else {
+    ttsStart();
+  }
+}
+
+function ttsStart() {
+  if (!window.speechSynthesis) { alert('您的浏览器不支持语音合成'); return; }
+  S.ttsPlaying = true;
+  S.ttsPaused = false;
+  S.ttsParagraphIdx = 0;
+  document.getElementById('ttsPanel').classList.add('show');
+  document.getElementById('ttsPauseBtn').textContent = '⏸ 暂停';
+  document.getElementById('readerToolbar').classList.add('hidden');
+  const reader = document.querySelector('.reader');
+  if (reader) reader.classList.add('tts-reading');
+  ttsSpeakParagraph(0);
+}
+
+function ttsPauseResume() {
+  if (!S.ttsPlaying) return;
+  if (S.ttsPaused) {
+    speechSynthesis.resume();
+    S.ttsPaused = false;
+    document.getElementById('ttsPauseBtn').textContent = '⏸ 暂停';
+  } else {
+    speechSynthesis.pause();
+    S.ttsPaused = true;
+    document.getElementById('ttsPauseBtn').textContent = '▶ 继续';
+  }
+}
+
+function ttsStop() {
+  speechSynthesis.cancel();
+  S.ttsPlaying = false;
+  S.ttsPaused = false;
+  document.getElementById('ttsPanel').classList.remove('show');
+  document.getElementById('readerToolbar').classList.remove('hidden');
+  const reader = document.querySelector('.reader');
+  if (reader) reader.classList.remove('tts-reading');
+  document.querySelectorAll('.tts-active').forEach(el => el.classList.remove('tts-active'));
+}
+
+function ttsSpeakParagraph(idx) {
+  const paras = document.querySelectorAll('.reader-content p[data-idx]');
+  if (idx >= paras.length) {
+    // Chapter finished — auto next chapter
+    if (S.chapterIdx < S.chapters.length - 1) {
+      const wasPlaying = S.ttsPlaying;
+      const nextIdx = S.chapterIdx + 1;
+      readChapter(nextIdx).then(() => {
+        if (wasPlaying) {
+          S.ttsPlaying = true;
+          S.ttsPaused = false;
+          S.ttsParagraphIdx = 0;
+          document.getElementById('ttsPanel').classList.add('show');
+          document.getElementById('ttsPauseBtn').textContent = '⏸ 暂停';
+          document.getElementById('readerToolbar').classList.add('hidden');
+          const reader = document.querySelector('.reader');
+          if (reader) reader.classList.add('tts-reading');
+          ttsSpeakParagraph(0);
+        }
+      });
+    } else {
+      ttsStop();
+    }
+    return;
+  }
+
+  S.ttsParagraphIdx = idx;
+  ttsHighlight(idx);
+  ttsUpdateProgress(idx, paras.length);
+
+  const text = paras[idx].textContent.trim();
+  if (!text) { ttsSpeakParagraph(idx + 1); return; }
+
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.rate = S.ttsRate;
+  utt.lang = 'zh-CN';
+  const voice = S.ttsVoices.find(v => v.name === S.ttsVoice);
+  if (voice) utt.voice = voice;
+
+  utt.onend = () => {
+    if (S.ttsPlaying && !S.ttsPaused) ttsSpeakParagraph(idx + 1);
+  };
+  utt.onerror = (e) => {
+    if (e.error !== 'canceled' && S.ttsPlaying) ttsSpeakParagraph(idx + 1);
+  };
+
+  speechSynthesis.speak(utt);
+}
+
+function ttsHighlight(idx) {
+  document.querySelectorAll('.tts-active').forEach(el => el.classList.remove('tts-active'));
+  const p = document.querySelector(`.reader-content p[data-idx="${idx}"]`);
+  if (p) {
+    p.classList.add('tts-active');
+    p.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function ttsUpdateProgress(idx, total) {
+  document.getElementById('ttsProgress').textContent = `${idx + 1}/${total}`;
+}
+
+function ttsSetRate(rate) {
+  rate = Math.max(0.4, Math.min(2.0, +rate.toFixed(1)));
+  S.ttsRate = rate;
+  localStorage.setItem('ttsRate', rate);
+  document.getElementById('ttsRateVal').textContent = rate.toFixed(1) + 'x';
+  document.getElementById('ttsSettingsRateVal').textContent = rate.toFixed(1) + 'x';
+  if (S.ttsPlaying) {
+    const idx = S.ttsParagraphIdx;
+    speechSynthesis.cancel();
+    ttsSpeakParagraph(idx);
+  }
+}
+
 // init
 renderHistory();
 loadSources();
+ttsInit();
 
 const searchInput = document.getElementById('searchInput');
 searchInput.addEventListener('input', () => {
