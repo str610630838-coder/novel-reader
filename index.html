@@ -996,9 +996,18 @@ function renderChapter() {
       const punc = parts[i+1] || '';
       const fullSentence = text + punc;
       if(fullSentence.trim()) {
+        let speakText = fullSentence;
+        // 去除常见的页码模式
+        speakText = speakText.replace(/第\s*\d+\s*页/g, '');
+        speakText = speakText.replace(/\d+\s*[\/|]\s*\d+/g, '');
+        speakText = speakText.replace(/[\[【]\s*\d+\s*[\]】]/g, '');
+        speakText = speakText.replace(/本章未完.*/g, '');
+        // 过滤标点符号，仅保留汉字、字母、数字、基础断句标点，其余替换为空格
+        speakText = speakText.replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s，。！？,.!?]/g, ' ');
+
         const id = `tts-s-${S.ttsSentences.length}`;
         const idx = S.ttsSentences.length;
-        S.ttsSentences.push({ text: fullSentence, id, idx });
+        S.ttsSentences.push({ text: fullSentence, speakText: speakText, id, idx });
         pContent += `<span id="${id}" class="tts-sentence" onclick="if(ttsState==='playing' || ttsState==='paused') playTTS(${idx})">${esc(fullSentence)}</span>`;
       }
     }
@@ -1239,7 +1248,15 @@ function playNextSentence() {
   }
   
   const sent = S.ttsSentences[S.ttsCurrentSentenceIdx];
-  const u = new SpeechSynthesisUtterance(sent.text);
+  const textToRead = (sent.speakText !== undefined ? sent.speakText : sent.text).trim();
+  
+  if (!/[a-zA-Z0-9\u4e00-\u9fa5]/.test(textToRead)) {
+    S.ttsCurrentSentenceIdx++;
+    setTimeout(playNextSentence, 10);
+    return;
+  }
+  
+  const u = new SpeechSynthesisUtterance(textToRead);
   currentUtterance = u;
   u.rate = ttsRate;
   const voice = ttsVoices.find(v => v.voiceURI === ttsVoiceURI);
