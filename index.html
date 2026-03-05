@@ -538,31 +538,68 @@ const PROXIES = [
   { name: 'corsproxy.io', url: 'https://corsproxy.io/?' },
 ];
 
-const SOURCE_BASE = 'https://www.bpshu.cc';
+const SOURCES = [
+  {
+    id: 'bpshu',
+    name: '搜书网',
+    base: 'https://www.bpshu.cc',
+    search: {
+      path: (kw) => `/search.php?q=${encodeURIComponent(kw)}`,
+      resultSelector: '.hot .row > .col-12.col-md-6',
+      titleSelector: 'dl dd h3 a',
+      authorSelector: 'dl dd.book_other span',
+      coverSelector: 'dl dt a img',
+      descSelector: null,
+    },
+    book: {
+      titleSelector: '.book_info .info h1',
+      authorSelector: '.book_info .info .options li',
+      descSelector: '#intro_pc',
+      coverSelector: '.book_info .img-thumbnail',
+      chapterListSelector: '.book_list2 ul li a',
+    },
+    chapter: {
+      titleSelector: 'h1',
+      contentSelector: 'article',
+      prevSelector: '#prev1',
+      nextSelector: '#next1',
+    }
+  },
+  {
+    id: 'qianbi',
+    name: '铅笔小说',
+    base: 'https://www.23qb.net',
+    search: {
+      path: (kw) => `/search.html?searchkey=${encodeURIComponent(kw)}`,
+      resultSelector: '.module-search-item',
+      titleSelector: '.novel-info h3 a',
+      authorSelector: null,
+      coverSelector: 'img[data-src]',
+      descSelector: '.novel-info-item',
+    },
+    book: {
+      titleSelector: 'h1.page-title',
+      authorSelector: 'meta[property="og:novel:author"]',
+      descSelector: '.novel-info-content',
+      coverSelector: '.novel-cover img',
+      chapterListSelector: '.module-row-info a',
+      catalogSuffix: '/catalog',
+    },
+    chapter: {
+      titleSelector: 'h1.article-title',
+      contentSelector: '.article-content',
+      prevSelector: null,
+      nextSelector: null,
+    }
+  }
+];
 
-const SELECTORS = {
-  search: {
-    path: (kw) => `/search.php?q=${encodeURIComponent(kw)}`,
-    resultSelector: '.hot .row > .col-12.col-md-6',
-    titleSelector: 'dl dd h3 a',
-    authorSelector: 'dl dd.book_other span',
-    coverSelector: 'dl dt a img',
-    descSelector: null,
-  },
-  book: {
-    titleSelector: '.book_info .info h1',
-    authorSelector: '.book_info .info .options li',
-    descSelector: '#intro_pc',
-    coverSelector: '.book_info .img-thumbnail',
-    chapterListSelector: '.book_list2 ul li a',
-  },
-  chapter: {
-    titleSelector: 'h1',
-    contentSelector: 'article',
-    prevSelector: '#prev1',
-    nextSelector: '#next1',
-  },
-};
+let activeSourceIdx = parseInt(localStorage.getItem('sourceIdx') || '0');
+if (activeSourceIdx >= SOURCES.length) activeSourceIdx = 0;
+
+// Computed getters for the active source selectors and base URL
+Object.defineProperty(window, 'SELECTORS', { get() { return SOURCES[activeSourceIdx]; } });
+Object.defineProperty(window, 'SOURCE_BASE', { get() { return SOURCES[activeSourceIdx].base; } });
 
 let activeProxyIdx = parseInt(localStorage.getItem('proxyIdx') || '0');
 if (activeProxyIdx >= PROXIES.length) activeProxyIdx = 0;
@@ -609,8 +646,9 @@ async function fetchWithProxy(fullUrl, proxyUrl) {
   return html;
 }
 
-async function fetchPage(urlPath) {
-  const fullUrl = urlPath.startsWith('http') ? urlPath : SOURCE_BASE + urlPath;
+async function fetchPage(urlPath, specificSource = null) {
+  const source = specificSource || SOURCES[activeSourceIdx];
+  const fullUrl = urlPath.startsWith('http') ? urlPath : source.base + urlPath;
   const customProxy = localStorage.getItem('corsProxy');
   if (customProxy) {
     const html = await fetchWithProxy(fullUrl, customProxy);
@@ -633,12 +671,13 @@ async function fetchPage(urlPath) {
   throw lastErr || new Error('所有代理均不可用');
 }
 
-function resolveUrl(href) {
+function resolveUrl(href, specificSource = null) {
+  const source = specificSource || SOURCES[activeSourceIdx];
   if (!href) return '';
   if (href.startsWith('http')) return href;
   if (href.startsWith('//')) return 'https:' + href;
-  if (href.startsWith('/')) return href;
-  return '/' + href;
+  if (href.startsWith('/')) return source.base + href;
+  return source.base + '/' + href;
 }
 
 // =====================================================
@@ -712,15 +751,36 @@ async function doSearch() {
   try {
     const doc = await fetchPage(SELECTORS.search.path(q));
     const results = [];
+    const src = SOURCES[activeSourceIdx];
+
+    // Check if page redirected to a single-book page (23qb special case)
+    const metaBookName = doc.querySelector('meta[property="og:novel:book_name"]');
+    if (metaBookName) {
+      const title = metaBookName.getAttribute('content') || '';
+      const author = (doc.querySelector('meta[property="og:novel:author"]') || {}).getAttribute?.('content') || '';
+      const readUrl = (doc.querySelector('meta[property="og:novel:read_url"]') || {}).getAttribute?.('content') || '';
+      let bookPath = '';
+      if (readUrl) {
+        try { bookPath = new URL(readUrl).pathname.replace(/\/catalog$/, '/'); } catch(e) {}
+      }
+      results.push({
+        title,
+        author,
+        cover: '',
+        desc: (doc.querySelector('.novel-info-content') || {}).textContent?.trim()?.slice(0, 120) || '',
+        url: bookPath ? resolveUrl(bookPath) : '',
+      });
+    }
 
     doc.querySelectorAll(SELECTORS.search.resultSelector).forEach(el => {
       const titleEl = el.querySelector(SELECTORS.search.titleSelector);
       if (!titleEl) return;
       let title = titleEl.textContent.trim();
       title = title.replace(/^\[[^\]]*\]\s*/, '');
-      const authorSpan = el.querySelector(SELECTORS.search.authorSelector);
-      const coverImg = el.querySelector(SELECTORS.search.coverSelector);
-      const coverSrc = coverImg?.getAttribute('src') || '';
+      if (!title || results.find(r => r.title === title)) return;
+      const authorSpan = SELECTORS.search.authorSelector ? el.querySelector(SELECTORS.search.authorSelector) : null;
+      const coverImg = SELECTORS.search.coverSelector ? el.querySelector(SELECTORS.search.coverSelector) : null;
+      const coverSrc = coverImg?.getAttribute('data-src') || coverImg?.getAttribute('src') || '';
       const fullCover = coverSrc && !coverSrc.startsWith('http') ? SOURCE_BASE + coverSrc : coverSrc;
       results.push({
         title,
@@ -770,27 +830,42 @@ async function openBook(idx) {
   document.getElementById('bookDetail').innerHTML = '<div class="loading">加载书籍信息...</div>';
 
   try {
-    const doc = await fetchPage(book.url);
     const sel = SELECTORS.book;
 
-    let author = '';
-    doc.querySelectorAll(sel.authorSelector).forEach(li => {
-      const t = li.textContent || '';
-      if (t.includes('作者')) {
-        author = t.replace(/作\s*者[：:]?\s*/g, '').trim();
-      }
-    });
+    // If source has a catalogSuffix, fetch chapters from catalog page; otherwise use book page
+    let catalogUrl = book.url;
+    if (sel.catalogSuffix) {
+      catalogUrl = book.url.replace(/\/$/, '') + sel.catalogSuffix;
+    }
+    const doc = await fetchPage(book.url);
 
+    let author = '';
+    if (sel.authorSelector) {
+      const authorEl = doc.querySelector(sel.authorSelector);
+      if (authorEl) {
+        if (authorEl.tagName === 'META') {
+          author = authorEl.getAttribute('content') || '';
+        } else if (sel.authorSelector.includes('li')) {
+          doc.querySelectorAll(sel.authorSelector).forEach(li => {
+            const t = li.textContent || '';
+            if (t.includes('作者')) author = t.replace(/作\s*者[：:]?\s*/g, '').trim();
+          });
+        } else {
+          author = authorEl.textContent.replace(/作\s*者[：:]?\s*/g, '').trim();
+        }
+      }
+    }
+
+    // Fetch chapters (possibly from a different page)
     const chapters = [];
-    doc.querySelectorAll(sel.chapterListSelector).forEach(a => {
-      chapters.push({
-        title: a.textContent.trim(),
-        url: resolveUrl(a.getAttribute('href')),
-      });
+    const chDoc = (catalogUrl !== book.url) ? await fetchPage(catalogUrl) : doc;
+    chDoc.querySelectorAll(sel.chapterListSelector).forEach(a => {
+      const t = a.textContent.trim();
+      if (t) chapters.push({ title: t, url: resolveUrl(a.getAttribute('href')) });
     });
 
     const coverEl = doc.querySelector(sel.coverSelector);
-    let coverSrc = coverEl?.getAttribute('src') || book.cover;
+    let coverSrc = coverEl?.getAttribute('data-src') || coverEl?.getAttribute('src') || book.cover;
     if (coverSrc && !coverSrc.startsWith('http')) coverSrc = SOURCE_BASE + coverSrc;
 
     const descEl = doc.querySelector(sel.descSelector);
@@ -823,27 +898,40 @@ async function openBookByUrl(url) {
   document.getElementById('bookDetail').innerHTML = '<div class="loading">加载书籍信息...</div>';
 
   try {
-    const doc = await fetchPage(url);
     const sel = SELECTORS.book;
 
+    let catalogUrl = url;
+    if (sel.catalogSuffix) {
+      catalogUrl = url.replace(/\/$/, '') + sel.catalogSuffix;
+    }
+    const doc = await fetchPage(url);
+
     let author = '';
-    doc.querySelectorAll(sel.authorSelector).forEach(li => {
-      const t = li.textContent || '';
-      if (t.includes('作者')) {
-        author = t.replace(/作\s*者[：:]?\s*/g, '').trim();
+    if (sel.authorSelector) {
+      const authorEl = doc.querySelector(sel.authorSelector);
+      if (authorEl) {
+        if (authorEl.tagName === 'META') {
+          author = authorEl.getAttribute('content') || '';
+        } else if (sel.authorSelector.includes('li')) {
+          doc.querySelectorAll(sel.authorSelector).forEach(li => {
+            const t = li.textContent || '';
+            if (t.includes('作者')) author = t.replace(/作\s*者[：:]?\s*/g, '').trim();
+          });
+        } else {
+          author = authorEl.textContent.replace(/作\s*者[：:]?\s*/g, '').trim();
+        }
       }
-    });
+    }
 
     const chapters = [];
-    doc.querySelectorAll(sel.chapterListSelector).forEach(a => {
-      chapters.push({
-        title: a.textContent.trim(),
-        url: resolveUrl(a.getAttribute('href')),
-      });
+    const chDoc = (catalogUrl !== url) ? await fetchPage(catalogUrl) : doc;
+    chDoc.querySelectorAll(sel.chapterListSelector).forEach(a => {
+      const t = a.textContent.trim();
+      if (t) chapters.push({ title: t, url: resolveUrl(a.getAttribute('href')) });
     });
 
     const coverEl = doc.querySelector(sel.coverSelector);
-    let coverSrc = coverEl?.getAttribute('src') || '';
+    let coverSrc = coverEl?.getAttribute('data-src') || coverEl?.getAttribute('src') || '';
     if (coverSrc && !coverSrc.startsWith('http')) coverSrc = SOURCE_BASE + coverSrc;
 
     const descEl = doc.querySelector(sel.descSelector);
