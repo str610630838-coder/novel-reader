@@ -429,7 +429,7 @@ input{font:inherit;color:var(--text)}
 <div class="view active" id="homeView">
   <div class="home-hero">
     <h1>推理小说阅读器</h1>
-    <p>搜索并在线阅读推理、悬疑、侦探小说</p>
+    <p>搜索并在线阅读推理、悬疑、侦探小说，支持部分日文书源</p>
     <div class="tag-cloud">
       <span class="tag" onclick="quickSearch('东野圭吾')">东野圭吾</span>
       <span class="tag" onclick="quickSearch('福尔摩斯')">福尔摩斯</span>
@@ -440,6 +440,9 @@ input{font:inherit;color:var(--text)}
       <span class="tag" onclick="quickSearch('侦探')">侦探小说</span>
       <span class="tag" onclick="quickSearch('松本清张')">松本清张</span>
       <span class="tag" onclick="quickSearch('名侦探')">名侦探</span>
+      <span class="tag" onclick="quickSearch('東野圭吾')">東野圭吾</span>
+      <span class="tag" onclick="quickSearch('綾辻行人')">綾辻行人</span>
+      <span class="tag" onclick="quickSearch('n6680gk')">なろう ncode</span>
     </div>
   </div>
   <div class="container" id="historySection"></div>
@@ -563,6 +566,14 @@ const SOURCE_HEALTH_KEY = 'sourceHealth';
 const SOURCE_COOLDOWN_BASE_MS = 2 * 60 * 1000;
 const BOOK_SOURCE_KEY = 'bookSourceMap';
 
+const SOURCE_HINTS = {
+  syosetu: '可输入: 日文关键词 / ncode(如 n6680gk) / ncode 作品链接',
+  syosetu_ncode: '该源建议输入 ncode 或作品直链，例如 n6680gk',
+  aozora: '可输入作品名，或直接粘贴青空文库链接',
+  __auto: '智能模式会并行尝试多个书源，自动合并结果',
+  __published: '仅在出版/经典源中搜索，噪音更少',
+};
+
 // =====================================================
 // Source categories
 // =====================================================
@@ -664,6 +675,17 @@ function quickSearch(kw) {
   doSearch();
 }
 
+function isLikelyNcode(v) {
+  return /^n\d+[a-z]{1,2}$/i.test((v || '').trim());
+}
+
+function updateSearchHint() {
+  const input = document.getElementById('searchInput');
+  const sourceId = document.getElementById('sourceSelect').value || '__auto';
+  const hint = SOURCE_HINTS[sourceId] || '搜索推理小说...';
+  input.placeholder = hint;
+}
+
 function loadSources() {
   if (typeof SOURCES === 'undefined') return;
   const sel = document.getElementById('sourceSelect');
@@ -705,7 +727,10 @@ function loadSources() {
   sel.value = (SOURCES[pref] || pref === '__auto' || pref === '__published') ? pref : '__auto';
   sel.addEventListener('change', () => {
     localStorage.setItem(SOURCE_PREF_KEY, sel.value || '__auto');
+    updateSearchHint();
   });
+
+  updateSearchHint();
 }
 
 function getSourceEngine(sourceId) {
@@ -780,15 +805,28 @@ function sourceName(sourceId) {
 async function doSearch() {
   const q = document.getElementById('searchInput').value.trim();
   if (!q) return;
+  const sourceId = document.getElementById('sourceSelect').value || '__auto';
+  const ncodeMode = sourceId === 'syosetu' || sourceId === 'syosetu_ncode';
+  const directUrl = /^https?:\/\//i.test(q);
   if (q.length < 2) {
+    if (ncodeMode && (isLikelyNcode(q) || directUrl)) {
+      // allow direct ncode / URL in JP modes
+    } else {
+      showView('search');
+      document.getElementById('searchTitle').textContent = '搜索结果';
+      document.getElementById('searchResults').innerHTML = '<div class="error-msg">关键词至少 2 个字</div>';
+      return;
+    }
+  }
+  if (q.length < 3 && sourceId === 'aozora' && !directUrl) {
     showView('search');
     document.getElementById('searchTitle').textContent = '搜索结果';
-    document.getElementById('searchResults').innerHTML = '<div class="error-msg">关键词至少 2 个字</div>';
+    document.getElementById('searchResults').innerHTML = '<div class="error-msg">青空文库建议至少输入 3 个字符，或直接粘贴链接</div>';
     return;
   }
   if (S.searching) return;
 
-  const preferredSource = document.getElementById('sourceSelect').value || '__auto';
+  const preferredSource = sourceId;
   const isParallel = preferredSource === '__auto' || preferredSource === '__published';
   S.searchResults = [];
   S.searching = true;
@@ -853,15 +891,23 @@ async function doParallelSearch(q, mode) {
 
   await Promise.allSettled(promises);
 
-  // Deduplicate by title
-  const deduped = [];
-  const titleSet = new Set();
-  allResults.forEach(r => {
-    if (!titleSet.has(r.title)) {
-      titleSet.add(r.title);
-      deduped.push(r);
+  // Deduplicate by title+author and prefer entries with richer metadata.
+  const resultMap = new Map();
+  allResults.forEach((r) => {
+    const t = (r.title || '').trim().toLowerCase();
+    const a = (r.author || '').trim().toLowerCase();
+    const key = t + '|' + a;
+    const prev = resultMap.get(key);
+    if (!prev) {
+      resultMap.set(key, r);
+      return;
     }
+    const prevScore = (prev.cover ? 2 : 0) + (prev.desc ? 1 : 0);
+    const nextScore = (r.cover ? 2 : 0) + (r.desc ? 1 : 0);
+    if (nextScore > prevScore) resultMap.set(key, r);
   });
+
+  const deduped = Array.from(resultMap.values());
 
   S.searchResults = deduped;
   renderSearchResults();

@@ -94,6 +94,27 @@
       category: '网络小说',
       engine: 'tianlai',
     },
+    syosetu: {
+      name: '小説家になろう (日文网文)',
+      baseUrl: 'https://yomou.syosetu.com',
+      encoding: 'utf-8',
+      category: '日文小说',
+      engine: 'syosetu',
+    },
+    syosetu_ncode: {
+      name: 'なろう直链 (ncode)',
+      baseUrl: 'https://ncode.syosetu.com',
+      encoding: 'utf-8',
+      category: '日文小说',
+      engine: 'syosetu_ncode',
+    },
+    aozora: {
+      name: '青空文库 (日文经典)',
+      baseUrl: 'https://www.aozora.gr.jp',
+      encoding: 'utf-8',
+      category: '日文小说',
+      engine: 'aozora',
+    },
   };
 
   function sourceEngine(source, sourceId) {
@@ -145,12 +166,120 @@
     return href.startsWith('/') ? href : '/' + href;
   }
 
+  function isNcodeId(input) {
+    return /^n\d+[a-z]{1,2}$/i.test((input || '').trim());
+  }
+
   async function searchBooks(q, sourceId) {
     const source = SOURCES[sourceId] || SOURCES.bpshu;
     const engine = sourceEngine(source, sourceId);
     const results = [];
     if (engine === 'kanunu8') {
       return { error: '努努书坊不支持搜索，请直接浏览书籍URL', results: [] };
+    }
+    if (engine === 'syosetu_ncode') {
+      const qTrim = q.trim();
+      if (isNcodeId(qTrim)) {
+        return {
+          results: [{
+            title: 'なろう作品直达: ' + qTrim.toLowerCase(),
+            author: '',
+            cover: '',
+            desc: '已根据 ncode 识别，点击后将直接打开作品。',
+            url: 'https://ncode.syosetu.com/' + qTrim.toLowerCase() + '/',
+            source: sourceId,
+          }],
+        };
+      }
+      return { error: '该源仅支持 ncode（如 n6680gk）或作品直链', results: [] };
+    }
+    if (engine === 'syosetu') {
+      const qTrim = q.trim();
+      if (/https?:\/\/ncode\.syosetu\.com\//i.test(qTrim)) {
+        return {
+          results: [{
+            title: 'なろう作品直链',
+            author: '',
+            cover: '',
+            desc: '已识别为作品直链，点击后直接打开。',
+            url: qTrim,
+            source: sourceId,
+          }],
+        };
+      }
+      if (isNcodeId(qTrim)) {
+        const id = qTrim.toLowerCase();
+        return {
+          results: [{
+            title: 'なろう作品直达: ' + id,
+            author: '',
+            cover: '',
+            desc: '已根据 ncode 识别，点击后将直接打开作品。',
+            url: 'https://ncode.syosetu.com/' + id + '/',
+            source: sourceId,
+          }],
+        };
+      }
+
+      const url = '/search.php?word=' + encodeURIComponent(q) + '&order=hyoka';
+      const doc = await fetchPage(url, source);
+      doc.querySelectorAll('.searchkekka_box, .p-search_novel, .p-search_novel__body').forEach((el) => {
+        const link = el.querySelector('a[href*="ncode.syosetu.com"]') || el.querySelector('a');
+        if (!link) return;
+        const href = attr(link, 'href');
+        const title = text(link).replace(/\s+/g, ' ').trim();
+        if (!href || !title) return;
+        const author = text(el.querySelector('.subtitle, .novel_writername, .p-search_novel__author')).replace(/^作者[：:]?\s*/i, '');
+        const desc = text(el.querySelector('.ex, .p-search_novel__ex, .novel_honbun')).slice(0, 160);
+        if (!results.find((r) => r.title === title && r.url === href)) {
+          results.push({ title, author, cover: '', desc, url: href, source: sourceId });
+        }
+      });
+
+      if (!results.length) {
+        doc.querySelectorAll('a[href*="ncode.syosetu.com/"]').forEach((a) => {
+          const href = attr(a, 'href');
+          const title = text(a).replace(/\s+/g, ' ').trim();
+          if (!href || !title || title.length < 2) return;
+          if (!results.find((r) => r.url === href)) {
+            results.push({ title, author: '', cover: '', desc: '', url: href, source: sourceId });
+          }
+        });
+      }
+      return { results };
+    }
+    if (engine === 'aozora') {
+      const qTrim = q.trim();
+      if (/https?:\/\/www\.aozora\.gr\.jp\//i.test(qTrim)) {
+        return {
+          results: [{
+            title: '青空文库直链',
+            author: '',
+            cover: '',
+            desc: '已识别为青空文库链接，点击后直接打开。',
+            url: qTrim,
+            source: sourceId,
+          }],
+        };
+      }
+
+      const url = '/index_pages/search.php?query=' + encodeURIComponent(q);
+      const doc = await fetchPage(url, source);
+      doc.querySelectorAll('a[href*="/cards/"]').forEach((a) => {
+        const title = text(a).replace(/\s+/g, ' ').trim();
+        const href = attr(a, 'href');
+        if (!title || !href) return;
+        const row = a.closest ? a.closest('tr') : null;
+        const author = row ? text(row.querySelector('td:nth-child(2) a, td:nth-child(2)')) : '';
+        if (!results.find((r) => r.url === href)) {
+          results.push({ title, author, cover: '', desc: '青空文库（日文经典）', url: href, source: sourceId });
+        }
+      });
+
+      if (!results.length) {
+        return { error: '青空文库搜索结果为空，可直接粘贴作品链接阅读', results: [] };
+      }
+      return { results };
     }
     if (engine === 'qianbi') {
       const url = '/search.html?searchkey=' + encodeURIComponent(q);
@@ -478,6 +607,47 @@
       cover = attr(doc.querySelector('.bookimg img') || doc.querySelector('.cover img'), 'src') || '';
       const chs = collectChapters(doc, bookUrl, 'dd a[href], .listmain a[href], .list a[href], #list a[href]');
       chs.forEach(c => { if (!chapters.find(x => x.url === c.url)) chapters.push(c); });
+    } else if (engine === 'syosetu' || engine === 'syosetu_ncode') {
+      title = text(doc.querySelector('.novel_title')) || text(doc.querySelector('h1')) || (doc.querySelector('title')?.textContent || '').split('-')[0].trim() || '未知书籍';
+      author = text(doc.querySelector('.novel_writername a')) || text(doc.querySelector('.novel_writername')) || '';
+      desc = text(doc.querySelector('#novel_ex')) || attr(doc.querySelector('meta[name="description"]'), 'content') || '';
+
+      doc.querySelectorAll('.novel_sublist2 a[href], .index_box a[href], a.p-eplist__subtitle').forEach((a) => {
+        const chTitle = text(a);
+        let href = attr(a, 'href');
+        if (!chTitle || !href) return;
+        if (!href.startsWith('http')) {
+          try { href = new URL(href, bookUrl).href; } catch (e) {}
+        }
+        const u = href.startsWith('http') ? href : resolveHref(href);
+        if (!chapters.find((c) => c.url === u)) chapters.push({ title: chTitle, url: u });
+      });
+
+      if (!chapters.length) {
+        chapters.push({ title: '全文', url: bookUrl });
+      }
+    } else if (engine === 'aozora') {
+      title = text(doc.querySelector('h1')) || (doc.querySelector('title')?.textContent || '').split(' - ')[0].trim() || '未知书籍';
+      author = text(doc.querySelector('a[href*="person"]')) || '';
+      desc = text(doc.querySelector('.summary, .description')) || '';
+
+      let mainFile = '';
+      doc.querySelectorAll('a[href]').forEach((a) => {
+        const href = attr(a, 'href');
+        const t = text(a);
+        if (mainFile) return;
+        if (/\/files\/.+\.(html?|xhtml)$/i.test(href) || /xhtml|html版|いますぐ読/.test(t)) {
+          mainFile = href;
+        }
+      });
+      if (mainFile) {
+        if (!mainFile.startsWith('http')) {
+          try { mainFile = new URL(mainFile, source.baseUrl).href; } catch (e) {}
+        }
+        chapters.push({ title: '正文', url: mainFile });
+      } else {
+        chapters.push({ title: '正文', url: bookUrl });
+      }
     } else {
       title = text(doc.querySelector(source.book.titleSelector)) || '未知书籍';
       const authorEl = doc.querySelector(source.book.authorSelector);
@@ -556,6 +726,32 @@
       content = html(doc.querySelector('#content') || doc.querySelector('.content') || doc.querySelector('#BookText'));
       const nav = findPrevNext(doc);
       prevUrl = nav.prevUrl; nextUrl = nav.nextUrl;
+    } else if (engine === 'syosetu' || engine === 'syosetu_ncode') {
+      title = text(doc.querySelector('.novel_subtitle')) || text(doc.querySelector('h1')) || (doc.querySelector('title')?.textContent || '').split('-')[0].trim();
+      content = html(doc.querySelector('#novel_honbun')) || html(doc.querySelector('.novel_view')) || html(doc.querySelector('#novel_color'));
+      prevUrl = attr(doc.querySelector('a[rel="prev"]') || doc.querySelector('#novel_p'), 'href') || '';
+      nextUrl = attr(doc.querySelector('a[rel="next"]') || doc.querySelector('#novel_n'), 'href') || '';
+      if (!prevUrl || !nextUrl) {
+        doc.querySelectorAll('a[href]').forEach((a) => {
+          const t = text(a);
+          const href = attr(a, 'href') || '';
+          if (!href) return;
+          if (!prevUrl && /前へ|前話|上一/.test(t)) prevUrl = href;
+          if (!nextUrl && /次へ|次話|下一/.test(t)) nextUrl = href;
+        });
+      }
+      if (prevUrl && !prevUrl.startsWith('http')) {
+        try { prevUrl = new URL(prevUrl, chapterUrl).href; } catch (e) {}
+      }
+      if (nextUrl && !nextUrl.startsWith('http')) {
+        try { nextUrl = new URL(nextUrl, chapterUrl).href; } catch (e) {}
+      }
+    } else if (engine === 'aozora') {
+      title = text(doc.querySelector('h1')) || text(doc.querySelector('h2')) || (doc.querySelector('title')?.textContent || '').split(' - ')[0].trim();
+      content = html(doc.querySelector('.main_text')) || html(doc.querySelector('#contents')) || html(doc.querySelector('body'));
+      const nav = findPrevNext(doc);
+      prevUrl = nav.prevUrl;
+      nextUrl = nav.nextUrl;
     } else {
       const titleEl = doc.querySelector(source.chapter.titleSelector);
       title = titleEl ? text(titleEl) : '';
