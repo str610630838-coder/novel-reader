@@ -282,6 +282,17 @@ input{font:inherit;color:var(--text)}
 /* ---- Bookshelf ---- */
 .bookshelf-empty{text-align:center;padding:60px 20px;color:var(--text2)}
 .bookshelf-empty svg{width:64px;height:64px;color:var(--text3);margin-bottom:16px}
+.book-progress{margin-top:6px}
+.book-progress-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:3px}
+.book-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s}
+.book-progress-text{font-size:11px;color:var(--text3)}
+.btn-continue{
+  display:inline-flex;align-items:center;gap:4px;
+  margin-top:8px;padding:5px 12px;
+  background:var(--accent);color:#fff;border-radius:6px;
+  font-size:12px;font-weight:600;
+}
+.btn-continue:hover{background:var(--accent-hover)}
 
 /* ---- Settings Panel ---- */
 .settings-overlay{
@@ -431,11 +442,9 @@ input{font:inherit;color:var(--text)}
 <div class="view" id="readerView">
   <div class="reader" id="readerArea"></div>
   <div class="reader-toolbar" id="readerToolbar">
-    <button onclick="prevChapter()"><span>◀</span>上一章</button>
     <button onclick="showChapterDrawer()"><span>☰</span>目录</button>
     <button onclick="toggleTTSPanel()"><span>🎧</span>朗读</button>
     <button onclick="toggleSettings()"><span>⚙️</span>设置</button>
-    <button onclick="nextChapter()"><span>▶</span>下一章</button>
   </div>
 </div>
 
@@ -604,6 +613,9 @@ Object.defineProperty(window, 'SOURCE_BASE', { get() { return SOURCES[activeSour
 let activeProxyIdx = parseInt(localStorage.getItem('proxyIdx') || '0');
 if (activeProxyIdx >= PROXIES.length) activeProxyIdx = 0;
 
+const SELECTORS = SOURCES[activeSourceIdx];
+const SOURCE_BASE = SOURCES[activeSourceIdx].base;
+
 function getProxy() {
   const custom = localStorage.getItem('corsProxy');
   if (custom) return custom;
@@ -710,6 +722,7 @@ applyReadingStyle();
 // View Management
 // =====================================================
 function showView(name, pushStack = true) {
+  if (S.view === 'reader' && name !== 'reader') saveScrollPos();
   if (pushStack && S.view !== name) S.viewStack.push(S.view);
   S.view = name;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -1062,7 +1075,7 @@ async function readChapter(idx) {
 
     renderChapter();
     saveReadProgress(idx);
-    window.scrollTo(0, 0);
+    restoreScrollPos(idx);
   } catch (e) {
     console.error('Chapter error:', e);
     document.getElementById('readerArea').innerHTML =
@@ -1104,33 +1117,56 @@ function renderChapter() {
       }
     }
     return `<p>${pContent}</p>`;
-  }).join('');
+  });
 
-  const hasPrev = S.chapterIdx > 0;
-  const hasNext = S.chapterIdx < S.chapters.length - 1;
+  const allHtml = paragraphs.join('');
+  const hasPrevCh = S.chapterIdx > 0;
+  const hasNextCh = S.chapterIdx < S.chapters.length - 1;
 
   document.getElementById('readerArea').innerHTML = `
     <div class="reader-title">${esc(d.title || S.chapters[S.chapterIdx]?.title || '')}</div>
-    <div class="reader-content">${paragraphs}</div>
+    <div class="reader-content">${allHtml}</div>
     <div class="reader-nav">
-      <button class="btn btn-outline" onclick="prevChapter()" ${hasPrev ? '' : 'disabled style="opacity:.4"'}>上一章</button>
+      <button class="btn btn-outline" onclick="prevChapter()" ${hasPrevCh ? '' : 'disabled style="opacity:.4"'}>上一章</button>
       <button class="btn btn-outline" onclick="showView('book')">目录</button>
       <button class="btn btn-outline" onclick="toggleTTSPanel()">朗读</button>
-      <button class="btn btn-outline" onclick="nextChapter()" ${hasNext ? '' : 'disabled style="opacity:.4"'}>下一章</button>
+      <button class="btn btn-outline" onclick="nextChapter()" ${hasNextCh ? '' : 'disabled style="opacity:.4"'}>下一章</button>
     </div>`;
   applyReadingStyle();
 
   if (S.ttsAutoNext) {
     S.ttsAutoNext = false;
-    setTimeout(() => {
-      playTTS(0);
-    }, 1000);
+    setTimeout(() => playTTS(0), 1000);
   }
 }
 
 function prevChapter() { if (S.chapterIdx > 0) readChapter(S.chapterIdx - 1); }
 function nextChapter() { if (S.chapterIdx < S.chapters.length - 1) readChapter(S.chapterIdx + 1); }
 function showChapterDrawer() { showView('book'); }
+
+// ---- Scroll position memory ----
+let _scrollTimer = null;
+window.addEventListener('scroll', () => {
+  if (S.view !== 'reader') return;
+  clearTimeout(_scrollTimer);
+  _scrollTimer = setTimeout(saveScrollPos, 400);
+});
+
+function scrollKey(idx) {
+  return `sp_${S.book?.bookUrl}_${idx ?? S.chapterIdx}`;
+}
+function saveScrollPos() {
+  if (S.view !== 'reader' || !S.book || S.chapterIdx < 0) return;
+  localStorage.setItem(scrollKey(), Math.round(window.scrollY));
+}
+function restoreScrollPos(idx) {
+  const saved = parseInt(localStorage.getItem(scrollKey(idx)) || '0');
+  if (saved > 0) {
+    requestAnimationFrame(() => window.scrollTo(0, saved));
+  } else {
+    window.scrollTo(0, 0);
+  }
+}
 
 document.addEventListener('keydown', e => {
   if (S.view !== 'reader') return;
@@ -1172,6 +1208,7 @@ function saveReadProgress(chapterIdx) {
   if (bk) {
     bk.lastChapter = chapterIdx;
     bk.lastChapterTitle = S.chapters[chapterIdx]?.title || '';
+    bk.totalChapters = S.chapters.length;
     localStorage.setItem('shelf', JSON.stringify(S.bookshelf));
   }
 }
@@ -1186,7 +1223,19 @@ function renderBookshelf() {
     c.innerHTML = '<div class="bookshelf-empty"><div style="font-size:48px;margin-bottom:16px">📚</div><p>书架空空如也</p><p style="margin-top:8px;font-size:14px">搜索并添加你喜欢的推理小说吧</p></div>';
     return;
   }
-  c.innerHTML = '<div class="book-grid">' + S.bookshelf.map(b => `
+  c.innerHTML = '<div class="book-grid">' + S.bookshelf.map(b => {
+    const total = b.totalChapters || 0;
+    const cur = (b.lastChapter ?? -1) + 1;
+    const pct = total > 0 ? Math.round(cur / total * 100) : 0;
+    const progressHtml = total > 0 ? `
+      <div class="book-progress">
+        <div class="book-progress-bar"><div class="book-progress-fill" style="width:${pct}%"></div></div>
+        <div class="book-progress-text">第${cur}章 / 共${total}章（${pct}%）</div>
+      </div>` : (b.lastChapterTitle ? `<div class="book-progress-text" style="margin-top:4px">读到：${esc(b.lastChapterTitle)}</div>` : '');
+    const continueBtn = (b.lastChapter != null)
+      ? `<button class="btn-continue" onclick="event.stopPropagation();continueReading('${esc(b.url)}')">▶ 继续阅读</button>`
+      : '';
+    return `
     <div class="book-card" onclick="openBookByUrl('${esc(b.url)}')">
       <div class="book-cover">
         ${b.cover ? `<img src="${b.cover}" alt="" onerror="this.parentElement.innerHTML='📖'">` : '📖'}
@@ -1194,9 +1243,36 @@ function renderBookshelf() {
       <div class="book-meta">
         <h3>${esc(b.title)}</h3>
         <div class="author">${esc(b.author || '')}</div>
-        <div class="desc">${b.lastChapterTitle ? '上次读到：' + esc(b.lastChapterTitle) : ''}</div>
+        ${progressHtml}
+        ${continueBtn}
       </div>
-    </div>`).join('') + '</div>';
+    </div>`;
+  }).join('') + '</div>';
+}
+
+async function continueReading(url) {
+  const hist = S.history.find(h => h.url === url);
+  const bk = S.bookshelf.find(x => x.url === url);
+  const chIdx = hist?.chapterIdx ?? bk?.lastChapter ?? 0;
+
+  showView('reader');
+  document.getElementById('readerArea').innerHTML = '<div class="loading">加载中...</div>';
+
+  try {
+    const doc = await fetchPage(url);
+    const sel = SELECTORS.book;
+    const chapters = [...doc.querySelectorAll(sel.chapterListSelector)].map(a => ({
+      title: a.textContent.trim(),
+      url: resolveUrl(a.getAttribute('href')),
+    })).filter(c => c.url && c.title);
+
+    S.book = { title: bk?.title || '', author: bk?.author || '', bookUrl: url, url };
+    S.chapters = chapters;
+    if (bk) { bk.totalChapters = chapters.length; localStorage.setItem('shelf', JSON.stringify(S.bookshelf)); }
+    await readChapter(chIdx);
+  } catch (e) {
+    document.getElementById('readerArea').innerHTML = '<div class="error-msg">加载失败</div>';
+  }
 }
 
 function renderHistory() {
